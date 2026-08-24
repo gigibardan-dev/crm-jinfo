@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import type { Database } from '@/lib/types/database'
 
 export async function PATCH(
   request: NextRequest,
@@ -51,7 +52,7 @@ export async function PATCH(
   }
 
   // Update profile
-  const profileUpdate: Record<string, unknown> = {}
+    const profileUpdate: Database['public']['Tables']['profiles']['Update'] = {}
   if (full_name !== undefined) profileUpdate.full_name = full_name
   if (email !== undefined) profileUpdate.email = email
   if (phone !== undefined) profileUpdate.phone = phone || null
