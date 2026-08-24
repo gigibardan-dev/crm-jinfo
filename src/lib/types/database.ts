@@ -42,6 +42,7 @@ export type Database = {
           is_active?: boolean
           updated_at?: string
         }
+        Relationships: []
       }
       leads: {
         Row: {
@@ -133,6 +134,22 @@ export type Database = {
           lost_reason?: string | null
           won_value?: number | null
         }
+        Relationships: [
+          {
+            foreignKeyName: 'leads_assigned_to_fkey'
+            columns: ['assigned_to']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'leads_assigned_by_fkey'
+            columns: ['assigned_by']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+        ]
       }
       lead_activities: {
         Row: {
@@ -156,6 +173,22 @@ export type Database = {
           content?: string | null
           metadata?: Json | null
         }
+        Relationships: [
+          {
+            foreignKeyName: 'lead_activities_lead_id_fkey'
+            columns: ['lead_id']
+            isOneToOne: false
+            referencedRelation: 'leads'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'lead_activities_user_id_fkey'
+            columns: ['user_id']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+        ]
       }
       reminders: {
         Row: {
@@ -182,6 +215,22 @@ export type Database = {
           is_completed?: boolean
           completed_at?: string | null
         }
+        Relationships: [
+          {
+            foreignKeyName: 'reminders_lead_id_fkey'
+            columns: ['lead_id']
+            isOneToOne: false
+            referencedRelation: 'leads'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'reminders_user_id_fkey'
+            columns: ['user_id']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+        ]
       }
       notifications: {
         Row: {
@@ -206,6 +255,22 @@ export type Database = {
         Update: {
           is_read?: boolean
         }
+        Relationships: [
+          {
+            foreignKeyName: 'notifications_user_id_fkey'
+            columns: ['user_id']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'notifications_lead_id_fkey'
+            columns: ['lead_id']
+            isOneToOne: false
+            referencedRelation: 'leads'
+            referencedColumns: ['id']
+          },
+        ]
       }
       pipeline_stages: {
         Row: {
@@ -235,6 +300,7 @@ export type Database = {
           is_terminal?: boolean
           is_default?: boolean
         }
+        Relationships: []
       }
       lead_sources: {
         Row: {
@@ -260,6 +326,7 @@ export type Database = {
           icon?: string | null
           is_active?: boolean
         }
+        Relationships: []
       }
       lead_attachments: {
         Row: {
@@ -285,7 +352,26 @@ export type Database = {
           file_name?: string
           file_url?: string
         }
+        Relationships: [
+          {
+            foreignKeyName: 'lead_attachments_lead_id_fkey'
+            columns: ['lead_id']
+            isOneToOne: false
+            referencedRelation: 'leads'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'lead_attachments_uploaded_by_fkey'
+            columns: ['uploaded_by']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+        ]
       }
+    }
+    Views: {
+      [_ in never]: never
     }
     Functions: {
       get_user_role: {
@@ -300,6 +386,12 @@ export type Database = {
         Args: Record<string, never>
         Returns: boolean
       }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
     }
   }
 }

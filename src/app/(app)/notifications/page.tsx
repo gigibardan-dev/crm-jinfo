@@ -38,10 +38,12 @@ export default function NotificationsPage() {
       })
   }, [profile?.id, supabase])
 
+
+
   async function markAllRead() {
     await supabase
       .from('notifications')
-      .update({ is_read: true })
+      .update({ is_read: true } as { is_read: boolean })
       .eq('user_id', profile!.id)
       .eq('is_read', false)
 
@@ -49,9 +51,13 @@ export default function NotificationsPage() {
   }
 
   async function markRead(id: string) {
-    await supabase.from('notifications').update({ is_read: true }).eq('id', id)
+    await supabase
+      .from('notifications')
+      .update({ is_read: true } as { is_read: boolean })
+      .eq('id', id)
     setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)))
   }
+
 
   return (
     <>
@@ -77,9 +83,8 @@ export default function NotificationsPage() {
               <div
                 key={notif.id}
                 onClick={() => markRead(notif.id)}
-                className={`flex items-start gap-3 px-4 py-3 rounded-xl transition-colors cursor-pointer ${
-                  notif.is_read ? 'bg-white' : 'bg-blue-50/50'
-                } hover:bg-slate-50`}
+                className={`flex items-start gap-3 px-4 py-3 rounded-xl transition-colors cursor-pointer ${notif.is_read ? 'bg-white' : 'bg-blue-50/50'
+                  } hover:bg-slate-50`}
               >
                 <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mt-0.5">
                   <Icon size={14} />

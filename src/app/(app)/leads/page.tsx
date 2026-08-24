@@ -269,7 +269,7 @@ export default function PipelinePage() {
                             backgroundColor: (stage?.color || '#64748b') + '18',
                           }}
                         >
-                          <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: stage?.color }} />
+                          <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: stage?.color ?? undefined }} />
                           {stage?.name || lead.status}
                         </span>
                       </td>

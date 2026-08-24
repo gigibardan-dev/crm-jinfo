@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { createClient } from '@/lib/supabase/client'
 import { Header } from '@/components/layout/Header'
-import type { Lead, LeadActivity, PipelineStage, Profile, Reminder } from '@/lib/types/database'
+import type { Lead, LeadActivity, PipelineStage, Profile, Reminder, Database } from '@/lib/types/database'
 import { fullName, timeAgo, formatDateTime, formatTravelDates, formatTravelers, formatPhone } from '@/lib/utils'
 import { SOURCE_ICONS, PRIORITY_CONFIG, LOST_REASONS } from '@/lib/utils/constants'
 import {
@@ -99,7 +99,7 @@ export default function LeadDetailPage() {
   async function applyStatusChange(newStatus: string, reason?: string) {
     if (!lead) return
 
-    const updates: Record<string, any> = { status: newStatus }
+    const updates: Database['public']['Tables']['leads']['Update'] = { status: newStatus }
     if (reason) updates.lost_reason = reason
     if (newStatus !== 'new' && !lead.first_response_at) {
       updates.first_response_at = new Date().toISOString()
@@ -209,7 +209,7 @@ export default function LeadDetailPage() {
                 backgroundColor: (currentStage?.color || '#64748b') + '08',
               }}
             >
-              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: currentStage?.color }} />
+              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: currentStage?.color ?? undefined }} />
               {currentStage?.name || lead.status}
               <ChevronDown size={14} />
             </button>

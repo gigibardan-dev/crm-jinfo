@@ -3,10 +3,9 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export async function POST(request: NextRequest) {
-  // Verify the requesting user is admin
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  
+
   if (!user) {
     return NextResponse.json({ error: 'Neautorizat' }, { status: 401 })
   }
@@ -17,7 +16,7 @@ export async function POST(request: NextRequest) {
     .eq('id', user.id)
     .single()
 
-  if (profile?.role !== 'admin') {
+  if (!profile || profile.role !== 'admin') {
     return NextResponse.json({ error: 'Doar adminii pot crea conturi' }, { status: 403 })
   }
 
@@ -32,13 +31,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Rol invalid' }, { status: 400 })
   }
 
-  // Create auth user with service role (bypasses email confirmation)
   const adminClient = createAdminClient()
 
   const { data: authUser, error: authError } = await adminClient.auth.admin.createUser({
     email,
     password,
-    email_confirm: true, // Skip email confirmation
+    email_confirm: true,
   })
 
   if (authError || !authUser.user) {
@@ -48,7 +46,6 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  // Create profile
   const { error: profileError } = await adminClient
     .from('profiles')
     .insert({
@@ -60,12 +57,8 @@ export async function POST(request: NextRequest) {
     })
 
   if (profileError) {
-    // Cleanup: delete auth user if profile creation fails
     await adminClient.auth.admin.deleteUser(authUser.user.id)
-    return NextResponse.json(
-      { error: 'Eroare la creare profil' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Eroare la creare profil' }, { status: 500 })
   }
 
   return NextResponse.json({ id: authUser.user.id, email, role }, { status: 201 })
