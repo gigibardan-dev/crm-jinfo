@@ -5,8 +5,32 @@ import type { Database } from '@/lib/types/database'
 type LeadInsert = Database['public']['Tables']['leads']['Insert']
 type NotificationInsert = Database['public']['Tables']['notifications']['Insert']
 
+// Origini browser cărora le este permis să apeleze acest endpoint direct din JS
+// (server-to-server, ca worker-ul Cloudflare al chatbot-ului Jino, nu are nevoie de CORS).
+const ALLOWED_ORIGINS = [
+  'https://www.jinfotours.ro',
+  'https://jinfotours.ro',
+]
+
+function corsHeaders(origin: string | null) {
+  const headers: Record<string, string> = {
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, x-api-key',
+  }
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    headers['Access-Control-Allow-Origin'] = origin
+    headers['Vary'] = 'Origin'
+  }
+  return headers
+}
+
+export async function OPTIONS(request: NextRequest) {
+  return new NextResponse(null, { status: 204, headers: corsHeaders(request.headers.get('origin')) })
+}
+
 export async function POST(request: NextRequest) {
   const supabase = createAdminClient()
+  const cors = corsHeaders(request.headers.get('origin'))
 
   try {
     const body = await request.json()
@@ -59,7 +83,7 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json(
           { status: 'duplicate', lead_id: existing[0].id },
-          { status: 200 }
+          { status: 200, headers: cors }
         )
       }
     }
@@ -92,7 +116,7 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (error || !lead) {
-      return NextResponse.json({ error: 'Eroare la creare lead' }, { status: 500 })
+      return NextResponse.json({ error: 'Eroare la creare lead' }, { status: 500, headers: cors })
     }
 
     await supabase.from('lead_activities').insert({
@@ -119,8 +143,8 @@ export async function POST(request: NextRequest) {
       await supabase.from('notifications').insert(notifications)
     }
 
-    return NextResponse.json({ status: 'created', lead_id: lead.id }, { status: 201 })
+    return NextResponse.json({ status: 'created', lead_id: lead.id }, { status: 201, headers: cors })
   } catch {
-    return NextResponse.json({ error: 'Payload invalid' }, { status: 400 })
+    return NextResponse.json({ error: 'Payload invalid' }, { status: 400, headers: cors })
   }
 }
