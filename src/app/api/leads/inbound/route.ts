@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import type { Database } from '@/lib/types/database'
 
 type LeadInsert = Database['public']['Tables']['leads']['Insert']
+type LeadUpdate = Database['public']['Tables']['leads']['Update']
 type NotificationInsert = Database['public']['Tables']['notifications']['Insert']
 
 // Origini browser cărora le este permis să apeleze acest endpoint direct din JS
@@ -26,6 +27,45 @@ function corsHeaders(origin: string | null) {
 
 export async function OPTIONS(request: NextRequest) {
   return new NextResponse(null, { status: 204, headers: corsHeaders(request.headers.get('origin')) })
+}
+
+// Scor de interes (0-100) → prioritate CRM. "urgent" rămâne mereu setat manual.
+function scoreToPriority(score: number): 'low' | 'medium' | 'high' {
+  if (score >= 60) return 'high'
+  if (score >= 30) return 'medium'
+  return 'low'
+}
+
+type ConvMsg = { role?: string; content?: string }
+
+function formatConversation(conversation: ConvMsg[]): string {
+  return conversation
+    .map((m) => `${m.role === 'assistant' ? '🤖 Carmen' : '👤 Client'}: ${m.content || ''}`)
+    .join('\n')
+}
+
+// Inserează/actualizează intrarea "vie" cu transcriptul conversației pe un lead.
+// Șterge varianta anterioară și reinserează, ca să apară mereu sus (cea mai recentă) în timeline.
+async function upsertConversationActivity(
+  supabase: ReturnType<typeof createAdminClient>,
+  leadId: string,
+  conversation: ConvMsg[]
+) {
+  if (!Array.isArray(conversation) || conversation.length === 0) return
+
+  await supabase
+    .from('lead_activities')
+    .delete()
+    .eq('lead_id', leadId)
+    .eq('type', 'system')
+    .contains('metadata', { kind: 'chat_transcript' })
+
+  await supabase.from('lead_activities').insert({
+    lead_id: leadId,
+    type: 'system' as const,
+    content: formatConversation(conversation),
+    metadata: { kind: 'chat_transcript', message_count: conversation.length },
+  })
 }
 
 export async function POST(request: NextRequest) {
@@ -75,14 +115,46 @@ export async function POST(request: NextRequest) {
       const { data: existing } = await query.limit(1)
 
       if (existing && existing.length > 0) {
+        const existingId = existing[0].id
+
+        // chat_ai: aceeași sesiune de chat trimite date tot mai bune pe măsură ce
+        // conversația avansează — actualizăm lead-ul existent în loc să lăsăm doar o notă.
+        if (source === 'chat_ai') {
+          const updates: LeadUpdate = {}
+          if (body.destination) updates.destination = body.destination
+          if (body.budget_range) updates.budget_range = body.budget_range
+          if (body.trip_type) updates.trip_type = body.trip_type
+          if (body.message) updates.message = body.message
+          if (typeof body.interest_score === 'number') updates.priority = scoreToPriority(body.interest_score)
+
+          if (Object.keys(updates).length > 0) {
+            await supabase.from('leads').update(updates).eq('id', existingId)
+          }
+
+          await supabase.from('lead_activities').insert({
+            lead_id: existingId,
+            type: 'system' as const,
+            content: `Lead actualizat din chat AI${
+              typeof body.interest_score === 'number' ? ` — scor ${body.interest_score}` : ''
+            }${body.destination ? `, destinație: ${body.destination}` : ''}`,
+          })
+
+          if (Array.isArray(body.conversation)) {
+            await upsertConversationActivity(supabase, existingId, body.conversation)
+          }
+
+          return NextResponse.json({ status: 'updated', lead_id: existingId }, { status: 200, headers: cors })
+        }
+
+        // Alte surse: comportament neschimbat — doar notă, fără suprascriere.
         await supabase.from('lead_activities').insert({
-          lead_id: existing[0].id,
+          lead_id: existingId,
           type: 'system' as const,
           content: `Lead duplicat detectat din ${source}. Date originale: ${JSON.stringify(body)}`,
         })
 
         return NextResponse.json(
-          { status: 'duplicate', lead_id: existing[0].id },
+          { status: 'duplicate', lead_id: existingId },
           { status: 200, headers: cors }
         )
       }
@@ -105,7 +177,7 @@ export async function POST(request: NextRequest) {
       budget_range: body.budget_range || null,
       trip_type: body.trip_type || null,
       message: body.message || null,
-      priority: body.priority || 'medium',
+      priority: typeof body.interest_score === 'number' ? scoreToPriority(body.interest_score) : (body.priority || 'medium'),
       status: 'new',
     }
 
@@ -124,6 +196,10 @@ export async function POST(request: NextRequest) {
       type: 'system' as const,
       content: `Lead creat automat din ${sourceDetail || source}`,
     })
+
+    if (Array.isArray(body.conversation)) {
+      await upsertConversationActivity(supabase, lead.id, body.conversation)
+    }
 
     const { data: managers } = await supabase
       .from('profiles')
