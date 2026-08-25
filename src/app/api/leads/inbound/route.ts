@@ -57,6 +57,39 @@ function jinfocruisePriority(source: string): 'low' | 'medium' | 'high' {
   return 'medium' // jinfocruise_request și jinfocruise_contact
 }
 
+function addDays(dateStr: string, days: number): string | null {
+  const d = new Date(dateStr)
+  if (isNaN(d.getTime())) return null
+  d.setDate(d.getDate() + days)
+  return d.toISOString().split('T')[0]
+}
+
+// sailing_date + nights sunt de încredere (vin din sistemul de rezervări) —
+// se mapează direct pe travel_date_from/to.
+function jinfocruiseDates(metadata: any): { travel_date_from: string | null; travel_date_to: string | null } {
+  const sailingDate: string | null = metadata?.sailing_date || null
+  if (!sailingDate) return { travel_date_from: null, travel_date_to: null }
+  const nights = typeof metadata?.nights === 'number' ? metadata.nights : null
+  return {
+    travel_date_from: sailingDate,
+    travel_date_to: nights ? addDays(sailingDate, nights) : null,
+  }
+}
+
+// Nr. adulți/copii: se mapează DOAR când sursa e sigură (jinfocruise_reservation
+// trimite no_adults/no_children explicit din sistemul de rezervări). La
+// jinfocruise_request avem doar `occupancy` — un total ambiguu (poate include
+// și copii, poate fi per-cabină) — NU se presupune nimic; rămâne vizibil în
+// panoul de detalii croazieră din raw data, iar agentul completează manual
+// nr_adults/nr_children pe lead dacă e nevoie, citind mesajul/ocupanța.
+function jinfocruisePax(source: string, metadata: any): { nr_adults?: number; nr_children?: number } {
+  if (source !== 'jinfocruise_reservation' || !metadata) return {}
+  const result: { nr_adults?: number; nr_children?: number } = {}
+  if (typeof metadata.no_adults === 'number') result.nr_adults = metadata.no_adults
+  if (typeof metadata.no_children === 'number') result.nr_children = metadata.no_children
+  return result
+}
+
 type ConvMsg = { role?: string; content?: string }
 
 function formatConversation(conversation: ConvMsg[]): string {
@@ -185,6 +218,8 @@ export async function POST(request: NextRequest) {
     }
 
     const isJinfocruise = JINFOCRUISE_SOURCES.includes(source)
+    const jcDates = isJinfocruise ? jinfocruiseDates(body.metadata) : null
+    const jcPax = isJinfocruise ? jinfocruisePax(source, body.metadata) : {}
 
     const leadData: LeadInsert = {
       first_name: body.first_name || body.name?.split(' ')[0] || null,
@@ -195,10 +230,10 @@ export async function POST(request: NextRequest) {
       source_detail: sourceDetail,
       source_raw_data: body,
       destination: body.destination || null,
-      travel_date_from: body.travel_date_from || null,
-      travel_date_to: body.travel_date_to || null,
-      nr_adults: body.nr_adults || 1,
-      nr_children: body.nr_children || 0,
+      travel_date_from: jcDates?.travel_date_from ?? (body.travel_date_from || null),
+      travel_date_to: jcDates?.travel_date_to ?? (body.travel_date_to || null),
+      nr_adults: jcPax.nr_adults ?? (body.nr_adults || 1),
+      nr_children: jcPax.nr_children ?? (body.nr_children || 0),
       children_ages: body.children_ages || null,
       budget_range: isJinfocruise
         ? jinfocruiseBudgetRange(source, body.metadata) || body.budget_range || null

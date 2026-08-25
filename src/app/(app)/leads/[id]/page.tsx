@@ -2,7 +2,7 @@
 
 /**
  * Lead Detail Page — Pagina completă pentru un lead
- * 
+ *
  * Features:
  * - Vizualizare toate datele lead-ului
  * - Editare inline (oricine are acces la lead)
@@ -336,6 +336,16 @@ export default function LeadDetailPage() {
   const currentStage = stages.find((s) => s.slug === lead.status)
   const inputClass = "w-full px-3 py-1.5 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
 
+  // JinfoCruise: `jinfocruise_request` și `jinfocruise_reservation` trimit date structurate
+  // de croazieră în `source_raw_data.metadata` care nu au coloană dedicată în `leads`
+  // (navă, cabină, tarif, breakdown preț, link) — le afișăm într-un panel separat, read-only.
+  // `jinfocruise_contact` nu are date de croazieră (doar subject/source_url), deci nu afișează acest panel.
+  const jinfocruiseMeta: any =
+    lead.source === 'jinfocruise_request' || lead.source === 'jinfocruise_reservation'
+      ? (lead.source_raw_data as any)?.metadata || {}
+      : null
+  const jinfocruisePassengers: any[] = Array.isArray(jinfocruiseMeta?.passengers) ? jinfocruiseMeta.passengers : []
+
   // ========================================
   // RENDER
   // ========================================
@@ -535,6 +545,101 @@ export default function LeadDetailPage() {
                 </>
               )}
             </div>
+
+            {/* Detalii croazieră — JinfoCruise (request/reservation), din source_raw_data.metadata */}
+            {jinfocruiseMeta && (
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-5">
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                      🚢 {jinfocruiseMeta.ship_name || 'Detalii croazieră'}
+                    </h3>
+                    {(jinfocruiseMeta.jinfo_no || jinfocruiseMeta.cruise_id) && (
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        {jinfocruiseMeta.jinfo_no ? `Rezervare ${jinfocruiseMeta.jinfo_no} · ` : ''}
+                        {jinfocruiseMeta.cruise_id || ''}
+                      </p>
+                    )}
+                  </div>
+                  {jinfocruiseMeta.page_url && (
+                    <a href={jinfocruiseMeta.page_url} target="_blank" rel="noopener noreferrer"
+                      className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap">
+                      Vezi pagina ↗
+                    </a>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-x-8 gap-y-3 text-sm">
+                  <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+                    <Calendar size={14} />
+                    <span className="text-slate-700 dark:text-slate-300">
+                      {jinfocruiseMeta.sailing_date ? new Date(jinfocruiseMeta.sailing_date).toLocaleDateString('ro-RO') : '—'}
+                      {typeof jinfocruiseMeta.nights === 'number' ? ` · ${jinfocruiseMeta.nights} nopți` : ''}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+                    <MapPin size={14} />
+                    <span className="text-slate-700 dark:text-slate-300">{jinfocruiseMeta.sailing_port || '—'}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+                    <Wallet size={14} />
+                    <span className="text-slate-700 dark:text-slate-300">
+                      {jinfocruiseMeta.gross_amount
+                        ? `${jinfocruiseMeta.gross_amount} EUR total`
+                        : jinfocruiseMeta.price
+                          ? `${jinfocruiseMeta.price} EUR${jinfocruiseMeta.price_type === 'total' ? ' total' : '/persoană'}`
+                          : '—'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+                    <Tag size={14} />
+                    <span className="text-slate-700 dark:text-slate-300">
+                      {jinfocruiseMeta.category_name || jinfocruiseMeta.category || '—'}
+                      {jinfocruiseMeta.cabin_no ? ` · cabina ${jinfocruiseMeta.cabin_no}` : jinfocruiseMeta.cabin_name ? ` · ${jinfocruiseMeta.cabin_name}` : ''}
+                    </span>
+                  </div>
+                </div>
+
+                {jinfocruiseMeta.fare_desc && (
+                  <p className="text-xs text-slate-400 mt-3">Tarif: {jinfocruiseMeta.fare_desc}</p>
+                )}
+
+                {(jinfocruiseMeta.port_charges || jinfocruiseMeta.service_charge_total) && (
+                  <p className="text-xs text-slate-400 mt-1">
+                    {jinfocruiseMeta.port_charges ? `Taxe port: ${jinfocruiseMeta.port_charges} EUR` : ''}
+                    {jinfocruiseMeta.port_charges && jinfocruiseMeta.service_charge_total ? ' · ' : ''}
+                    {jinfocruiseMeta.service_charge_total ? `Taxe serviciu: ${jinfocruiseMeta.service_charge_total} EUR` : ''}
+                  </p>
+                )}
+
+                {lead.source === 'jinfocruise_request' && jinfocruiseMeta.occupancy && (
+                  <div className="mt-3 flex items-start gap-2 text-xs bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-400 rounded-lg px-3 py-2">
+                    <AlertCircle size={13} className="mt-0.5 flex-shrink-0" />
+                    <span>
+                      Ocupanță menționată în cerere: <strong>{jinfocruiseMeta.occupancy}</strong> — neconfirmat pe câmpurile Adulți/Copii, verifică mesajul și completează manual dacă e nevoie.
+                    </span>
+                  </div>
+                )}
+
+                {jinfocruisePassengers.length > 0 && (
+                  <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+                    <p className="text-xs text-slate-400 mb-2">Pasageri ({jinfocruisePassengers.length})</p>
+                    <div className="space-y-1.5">
+                      {jinfocruisePassengers.map((p: any, i: number) => (
+                        <div key={i} className="flex items-center justify-between text-sm">
+                          <span className="text-slate-700 dark:text-slate-300">
+                            {p.first_name} {p.last_name}{p.pax_type === 'child' ? ' (copil)' : ''}
+                          </span>
+                          <span className="text-xs text-slate-400">
+                            {p.date_of_birth ? new Date(p.date_of_birth).toLocaleDateString('ro-RO') : ''}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Comment form */}
             <form onSubmit={handleComment} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
