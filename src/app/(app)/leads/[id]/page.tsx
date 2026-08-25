@@ -26,6 +26,7 @@ import { PriorityBadge } from '@/components/leads/PriorityBadge'
 import type { Lead, LeadActivity, PipelineStage, Profile, Reminder, Database } from '@/lib/types/database'
 import { fullName, timeAgo, formatDateTime, formatTravelDates, formatTravelers, formatPhone } from '@/lib/utils'
 import { LOST_REASONS, TRIP_TYPES } from '@/lib/utils/constants'
+import { LeadTimeline } from '@/components/leads/LeadTimeline'
 import {
   ArrowLeft, Phone, Mail, MapPin, Calendar, Users, Wallet,
   MessageSquare, Clock, Bell, Tag, ChevronDown, Send, AlertCircle,
@@ -379,9 +380,8 @@ export default function LeadDetailPage() {
                   {stages.map((stage) => (
                     <button key={stage.id} onClick={() => handleStatusChange(stage.slug)}
                       disabled={stage.slug === lead.status}
-                      className={`w-full text-left px-3 py-2 text-sm flex items-center gap-2 transition-colors ${
-                        stage.slug === lead.status ? 'text-slate-300 dark:text-slate-600 cursor-default' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
-                      }`}>
+                      className={`w-full text-left px-3 py-2 text-sm flex items-center gap-2 transition-colors ${stage.slug === lead.status ? 'text-slate-300 dark:text-slate-600 cursor-default' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
+                        }`}>
                       <span className="w-2 h-2 rounded-full" style={{ backgroundColor: stage.color ?? undefined }} />
                       {stage.name}
                     </button>
@@ -426,62 +426,62 @@ export default function LeadDetailPage() {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Prenume</label>
-                      <input type="text" value={editForm.first_name} onChange={(e) => setEditForm(f => ({...f, first_name: e.target.value}))} className={inputClass} />
+                      <input type="text" value={editForm.first_name} onChange={(e) => setEditForm(f => ({ ...f, first_name: e.target.value }))} className={inputClass} />
                     </div>
                     <div>
                       <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Nume</label>
-                      <input type="text" value={editForm.last_name} onChange={(e) => setEditForm(f => ({...f, last_name: e.target.value}))} className={inputClass} />
+                      <input type="text" value={editForm.last_name} onChange={(e) => setEditForm(f => ({ ...f, last_name: e.target.value }))} className={inputClass} />
                     </div>
                     <div>
                       <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Telefon</label>
-                      <input type="tel" value={editForm.phone} onChange={(e) => setEditForm(f => ({...f, phone: e.target.value}))} className={inputClass} />
+                      <input type="tel" value={editForm.phone} onChange={(e) => setEditForm(f => ({ ...f, phone: e.target.value }))} className={inputClass} />
                     </div>
                     <div>
                       <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Email</label>
-                      <input type="email" value={editForm.email} onChange={(e) => setEditForm(f => ({...f, email: e.target.value}))} className={inputClass} />
+                      <input type="email" value={editForm.email} onChange={(e) => setEditForm(f => ({ ...f, email: e.target.value }))} className={inputClass} />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Destinație</label>
-                      <input type="text" value={editForm.destination} onChange={(e) => setEditForm(f => ({...f, destination: e.target.value}))} className={inputClass} />
+                      <input type="text" value={editForm.destination} onChange={(e) => setEditForm(f => ({ ...f, destination: e.target.value }))} className={inputClass} />
                     </div>
                     <div>
                       <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Tip călătorie</label>
-                      <select value={editForm.trip_type} onChange={(e) => setEditForm(f => ({...f, trip_type: e.target.value}))} className={inputClass}>
+                      <select value={editForm.trip_type} onChange={(e) => setEditForm(f => ({ ...f, trip_type: e.target.value }))} className={inputClass}>
                         <option value="">—</option>
                         {TRIP_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                       </select>
                     </div>
                     <div>
                       <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Plecare</label>
-                      <input type="date" value={editForm.travel_date_from} onChange={(e) => setEditForm(f => ({...f, travel_date_from: e.target.value}))} className={inputClass} />
+                      <input type="date" value={editForm.travel_date_from} onChange={(e) => setEditForm(f => ({ ...f, travel_date_from: e.target.value }))} className={inputClass} />
                     </div>
                     <div>
                       <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Întoarcere</label>
-                      <input type="date" value={editForm.travel_date_to} onChange={(e) => setEditForm(f => ({...f, travel_date_to: e.target.value}))} className={inputClass} />
+                      <input type="date" value={editForm.travel_date_to} onChange={(e) => setEditForm(f => ({ ...f, travel_date_to: e.target.value }))} className={inputClass} />
                     </div>
                     <div>
                       <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Adulți</label>
-                      <input type="number" min={1} max={20} value={editForm.nr_adults} onChange={(e) => setEditForm(f => ({...f, nr_adults: Number(e.target.value)}))} className={inputClass} />
+                      <input type="number" min={1} max={20} value={editForm.nr_adults} onChange={(e) => setEditForm(f => ({ ...f, nr_adults: Number(e.target.value) }))} className={inputClass} />
                     </div>
                     <div>
                       <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Copii</label>
-                      <input type="number" min={0} max={10} value={editForm.nr_children} onChange={(e) => setEditForm(f => ({...f, nr_children: Number(e.target.value)}))} className={inputClass} />
+                      <input type="number" min={0} max={10} value={editForm.nr_children} onChange={(e) => setEditForm(f => ({ ...f, nr_children: Number(e.target.value) }))} className={inputClass} />
                     </div>
                     {editForm.nr_children > 0 && (
                       <div className="col-span-2">
                         <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Vârste copii</label>
-                        <input type="text" value={editForm.children_ages} onChange={(e) => setEditForm(f => ({...f, children_ages: e.target.value}))} className={inputClass} placeholder="ex: 4, 7" />
+                        <input type="text" value={editForm.children_ages} onChange={(e) => setEditForm(f => ({ ...f, children_ages: e.target.value }))} className={inputClass} placeholder="ex: 4, 7" />
                       </div>
                     )}
                     <div>
                       <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Buget</label>
-                      <input type="text" value={editForm.budget_range} onChange={(e) => setEditForm(f => ({...f, budget_range: e.target.value}))} className={inputClass} />
+                      <input type="text" value={editForm.budget_range} onChange={(e) => setEditForm(f => ({ ...f, budget_range: e.target.value }))} className={inputClass} />
                     </div>
                     <div>
                       <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Prioritate</label>
-                      <select value={editForm.priority} onChange={(e) => setEditForm(f => ({...f, priority: e.target.value as Lead['priority']}))} className={inputClass}>
+                      <select value={editForm.priority} onChange={(e) => setEditForm(f => ({ ...f, priority: e.target.value as Lead['priority'] }))} className={inputClass}>
                         <option value="low">Scăzut</option>
                         <option value="medium">Mediu</option>
                         <option value="high">Ridicat</option>
@@ -491,7 +491,7 @@ export default function LeadDetailPage() {
                   </div>
                   <div>
                     <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Mesaj / Note</label>
-                    <textarea rows={3} value={editForm.message} onChange={(e) => setEditForm(f => ({...f, message: e.target.value}))} className={inputClass + ' resize-none'} />
+                    <textarea rows={3} value={editForm.message} onChange={(e) => setEditForm(f => ({ ...f, message: e.target.value }))} className={inputClass + ' resize-none'} />
                   </div>
                 </div>
               ) : (
@@ -550,56 +550,11 @@ export default function LeadDetailPage() {
             </form>
 
             {/* ===== TIMELINE ===== */}
-            <div>
-              <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-3">Timeline</h3>
-              <div className="space-y-0">
-                {activities.map((activity) => {
-                  // Icon per activity type
-                  const iconMap: Record<string, { icon: typeof Clock; color: string }> = {
-                    comment:      { icon: MessageSquare, color: 'bg-blue-50 dark:bg-blue-950 text-blue-500' },
-                    status_change:{ icon: Clock,         color: 'bg-green-50 dark:bg-green-950 text-green-500' },
-                    assignment:   { icon: Users,         color: 'bg-indigo-50 dark:bg-indigo-950 text-indigo-500' },
-                    reminder_set: { icon: Bell,          color: 'bg-orange-50 dark:bg-orange-950 text-orange-500' },
-                    edit:         { icon: Pencil,        color: 'bg-amber-50 dark:bg-amber-950 text-amber-500' },
-                    system:       { icon: AlertCircle,   color: 'bg-slate-100 dark:bg-slate-800 text-slate-400' },
-                    email_sent:   { icon: Mail,          color: 'bg-cyan-50 dark:bg-cyan-950 text-cyan-500' },
-                    call_logged:  { icon: Phone,         color: 'bg-green-50 dark:bg-green-950 text-green-500' },
-                  }
-                  const cfg = iconMap[activity.type] || iconMap.system
-                  const ActivityIcon = cfg.icon
-
-                  return (
-                    <div key={activity.id} className="flex gap-3 py-3 border-b border-slate-50 dark:border-slate-800 last:border-0">
-                      <div className={`w-7 h-7 rounded-full ${cfg.color} flex items-center justify-center mt-0.5`}>
-                        <ActivityIcon size={13} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 text-xs text-slate-400">
-                          <span className="font-medium text-slate-600 dark:text-slate-300">
-                            {(activity as any).user?.full_name || 'Sistem'}
-                          </span>
-                          <span>·</span>
-                          <span>{formatDateTime(activity.created_at)}</span>
-                        </div>
-                        {activity.type === 'status_change' && activity.metadata && (
-                          <p className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">
-                            Status: <span className="font-medium">{stages.find(s => s.slug === (activity.metadata as any)?.from_status)?.name || (activity.metadata as any)?.from_status}</span>
-                            {' → '}
-                            <span className="font-medium">{stages.find(s => s.slug === (activity.metadata as any)?.to_status)?.name || (activity.metadata as any)?.to_status}</span>
-                          </p>
-                        )}
-                        {activity.content && (
-                          <p className="text-sm text-slate-700 dark:text-slate-300 mt-0.5 whitespace-pre-wrap">{activity.content}</p>
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
-                {activities.length === 0 && (
-                  <p className="text-sm text-slate-400 py-6 text-center">Nicio activitate încă.</p>
-                )}
-              </div>
-            </div>
+            <LeadTimeline
+              activities={activities}
+              stages={stages}
+              onRefresh={fetchLead}
+            />
           </div>
 
           {/* ===== RIGHT COLUMN: Meta + Actions ===== */}

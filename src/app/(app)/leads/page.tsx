@@ -1,18 +1,15 @@
 'use client'
 
 /**
- * Pipeline Page — Vizualizare Kanban + List
+ * Pipeline Page — Kanban + List cu paginație
  * 
- * Features:
- * - Kanban board cu coloane pe pipeline stages
- * - List view alternativ (tabel)
- * - Filtre: agent, sursă, prioritate, perioadă
- * - Won value modal la marcare câștigat
- * - Realtime updates via Supabase
- * - Toast feedback la schimbare status
+ * Kanban: afișează toate leadurile (scroll per coloană)
+ * List: paginat la 25/50/100 per pagină
+ * Filtre: agent, sursă, prioritate, perioadă
+ * Won value modal la marcare câștigat
  */
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { useToast } from '@/components/ui/Toast'
 import { createClient } from '@/lib/supabase/client'
@@ -20,6 +17,7 @@ import { Header } from '@/components/layout/Header'
 import { SourceIcon } from '@/components/leads/SourceIcon'
 import { PriorityBadge } from '@/components/leads/PriorityBadge'
 import { StatusBadge } from '@/components/leads/StatusBadge'
+import { Pagination } from '@/components/ui/Pagination'
 import type { Lead, PipelineStage, Profile, LeadSource, Database } from '@/lib/types/database'
 import { fullName, timeAgo } from '@/lib/utils'
 import { Bell, List, Kanban, Filter, X, Trophy } from 'lucide-react'
@@ -47,6 +45,10 @@ export default function PipelinePage() {
   const [filterDateTo, setFilterDateTo] = useState<string>('')
   const [showFilters, setShowFilters] = useState(false)
 
+  // --- Pagination (list view only) ---
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(25)
+
   // --- Won modal ---
   const [showWonModal, setShowWonModal] = useState(false)
   const [wonLeadId, setWonLeadId] = useState<string | null>(null)
@@ -70,12 +72,9 @@ export default function PipelinePage() {
     setLoading(false)
   }, [supabase, isAdminOrManager])
 
-  useEffect(() => {
-    if (!profile?.id) return
-    fetchData()
-  }, [profile?.id, fetchData])
+  useEffect(() => { if (profile?.id) fetchData() }, [profile?.id, fetchData])
 
-  // --- Realtime subscription ---
+  // Realtime
   useEffect(() => {
     const channel = supabase
       .channel('leads-pipeline')
@@ -84,97 +83,66 @@ export default function PipelinePage() {
     return () => { supabase.removeChannel(channel) }
   }, [supabase, fetchData])
 
-  // --- Won modal handler ---
-  async function handleWon() {
-    if (!wonLeadId) return
-    const lead = leads.find(l => l.id === wonLeadId)
-    if (!lead) return
-
-    const updates: Database['public']['Tables']['leads']['Update'] = {
-      status: 'won',
-      won_value: wonValue ? Number(wonValue) : null,
-    }
-    if (!lead.first_response_at) updates.first_response_at = new Date().toISOString()
-
-    await supabase.from('leads').update(updates).eq('id', wonLeadId)
-    await supabase.from('lead_activities').insert({
-      lead_id: wonLeadId,
-      user_id: profile!.id,
-      type: 'status_change',
-      content: wonValue ? `Valoare: ${wonValue} EUR` : null,
-      metadata: { from_status: lead.status, to_status: 'won' },
-    })
-
-    toast({ title: 'Lead marcat ca câștigat', variant: 'success', description: wonValue ? `Valoare: ${wonValue} EUR` : undefined })
-    setShowWonModal(false)
-    setWonLeadId(null)
-    setWonValue('')
-    fetchData()
-  }
-
-  // --- Status change ---
-  async function updateLeadStatus(leadId: string, newStatus: string) {
-    const lead = leads.find((l) => l.id === leadId)
-    if (!lead) return
-
-    // Intercept "won" → show value modal
-    if (newStatus === 'won') {
-      setWonLeadId(leadId)
-      setShowWonModal(true)
-      return
-    }
-
-    await supabase.from('leads').update({ status: newStatus }).eq('id', leadId)
-    await supabase.from('lead_activities').insert({
-      lead_id: leadId, user_id: profile!.id, type: 'status_change',
-      content: null, metadata: { from_status: lead.status, to_status: newStatus },
-    })
-
-    const stageName = stages.find(s => s.slug === newStatus)?.name || newStatus
-    toast({ title: `Status schimbat: ${stageName}`, variant: 'info' })
-  }
-
   // --- Filtering ---
-  const filteredLeads = leads.filter((lead) => {
-    if (filterAgent !== 'all' && lead.assigned_to !== filterAgent) return false
-    if (filterSource !== 'all' && lead.source !== filterSource) return false
-    if (filterPriority !== 'all' && lead.priority !== filterPriority) return false
-    if (filterDateFrom && lead.created_at < filterDateFrom) return false
-    if (filterDateTo && lead.created_at > filterDateTo + 'T23:59:59') return false
-    return true
-  })
+  const filteredLeads = useMemo(() => {
+    return leads.filter((lead) => {
+      if (filterAgent !== 'all' && lead.assigned_to !== filterAgent) return false
+      if (filterSource !== 'all' && lead.source !== filterSource) return false
+      if (filterPriority !== 'all' && lead.priority !== filterPriority) return false
+      if (filterDateFrom && lead.created_at < filterDateFrom) return false
+      if (filterDateTo && lead.created_at > filterDateTo + 'T23:59:59') return false
+      return true
+    })
+  }, [leads, filterAgent, filterSource, filterPriority, filterDateFrom, filterDateTo])
+
+  // Reset page when filters change
+  useEffect(() => { setCurrentPage(1) }, [filterAgent, filterSource, filterPriority, filterDateFrom, filterDateTo])
 
   const hasActiveFilters = filterAgent !== 'all' || filterSource !== 'all' || filterPriority !== 'all' || filterDateFrom || filterDateTo
 
   function clearFilters() {
-    setFilterAgent('all')
-    setFilterSource('all')
-    setFilterPriority('all')
-    setFilterDateFrom('')
-    setFilterDateTo('')
+    setFilterAgent('all'); setFilterSource('all'); setFilterPriority('all')
+    setFilterDateFrom(''); setFilterDateTo('')
   }
 
-  // Show won/lost in kanban, hide unqualified
-  const visibleStages = stages.filter((s) => !s.is_terminal || s.slug === 'won' || s.slug === 'lost')
+  // --- Pagination slicing (list view only) ---
+  const paginatedLeads = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage
+    return filteredLeads.slice(start, start + itemsPerPage)
+  }, [filteredLeads, currentPage, itemsPerPage])
 
-  function getLeadsForStage(slug: string) {
-    return filteredLeads.filter((l) => l.status === slug)
+  // Kanban helpers
+  const visibleStages = stages.filter((s) => !s.is_terminal || s.slug === 'won' || s.slug === 'lost')
+  function getLeadsForStage(slug: string) { return filteredLeads.filter((l) => l.status === slug) }
+
+  // --- Won modal ---
+  async function handleWon() {
+    if (!wonLeadId) return
+    const lead = leads.find(l => l.id === wonLeadId)
+    if (!lead) return
+    const updates: Database['public']['Tables']['leads']['Update'] = {
+      status: 'won', won_value: wonValue ? Number(wonValue) : null,
+    }
+    if (!lead.first_response_at) updates.first_response_at = new Date().toISOString()
+    await supabase.from('leads').update(updates).eq('id', wonLeadId)
+    await supabase.from('lead_activities').insert({
+      lead_id: wonLeadId, user_id: profile!.id, type: 'status_change',
+      content: wonValue ? `Valoare: ${wonValue} EUR` : null,
+      metadata: { from_status: lead.status, to_status: 'won' },
+    })
+    toast({ title: 'Lead marcat ca câștigat', variant: 'success', description: wonValue ? `Valoare: ${wonValue} EUR` : undefined })
+    setShowWonModal(false); setWonLeadId(null); setWonValue('')
+    fetchData()
   }
 
   const selectClass = "px-3 py-1.5 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
 
-  // --- Loading ---
   if (loading) {
     return (
-      <>
-        <Header title="Pipeline" />
-        <div className="p-6">
-          <div className="flex gap-4 overflow-x-auto">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="w-72 flex-shrink-0 bg-slate-100 dark:bg-slate-800 rounded-xl p-3 animate-pulse h-96" />
-            ))}
-          </div>
-        </div>
+      <><Header title="Pipeline" />
+        <div className="p-6"><div className="flex gap-4 overflow-x-auto">
+          {[...Array(5)].map((_, i) => <div key={i} className="w-72 flex-shrink-0 bg-slate-100 dark:bg-slate-800 rounded-xl p-3 animate-pulse h-96" />)}
+        </div></div>
       </>
     )
   }
@@ -186,27 +154,18 @@ export default function PipelinePage() {
         {/* Toolbar */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            {/* Filter toggle */}
             <button onClick={() => setShowFilters(!showFilters)}
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium border rounded-lg transition-colors ${
-                hasActiveFilters
-                  ? 'border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-400'
+                hasActiveFilters ? 'border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-400'
                   : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
               }`}>
-              <Filter size={14} />
-              Filtre
+              <Filter size={14} /> Filtre
               {hasActiveFilters && (
-                <button onClick={(e) => { e.stopPropagation(); clearFilters() }} className="ml-1 p-0.5 rounded hover:bg-blue-100 dark:hover:bg-blue-900">
-                  <X size={12} />
-                </button>
+                <button onClick={(e) => { e.stopPropagation(); clearFilters() }} className="ml-1 p-0.5 rounded hover:bg-blue-100 dark:hover:bg-blue-900"><X size={12} /></button>
               )}
             </button>
-            <span className="text-sm text-slate-400">
-              {filteredLeads.length} leaduri{hasActiveFilters ? ' (filtrate)' : ''}
-            </span>
+            <span className="text-sm text-slate-400">{filteredLeads.length} leaduri{hasActiveFilters ? ' (filtrate)' : ''}</span>
           </div>
-
-          {/* View toggle */}
           <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5">
             <button onClick={() => setViewMode('kanban')}
               className={`p-1.5 rounded-md transition-colors ${viewMode === 'kanban' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm' : 'text-slate-400'}`}>
@@ -247,58 +206,39 @@ export default function PipelinePage() {
               <input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)}
                 className="px-2 py-1.5 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
-            {hasActiveFilters && (
-              <button onClick={clearFilters} className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 underline">
-                Resetează filtrele
-              </button>
-            )}
+            {hasActiveFilters && <button onClick={clearFilters} className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 underline">Resetează</button>}
           </div>
         )}
 
-        {/* ========== KANBAN VIEW ========== */}
+        {/* ===== KANBAN ===== */}
         {viewMode === 'kanban' && (
           <div className="flex gap-3 overflow-x-auto pb-4" style={{ minHeight: '70vh' }}>
             {visibleStages.map((stage) => {
               const stageLeads = getLeadsForStage(stage.slug)
               return (
                 <div key={stage.id} className="w-72 flex-shrink-0 bg-slate-50 dark:bg-slate-900 rounded-xl flex flex-col border border-slate-100 dark:border-slate-800">
-                  {/* Column header */}
                   <div className="flex items-center gap-2 px-3 py-2.5 border-b border-slate-100 dark:border-slate-800">
                     <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: stage.color || '#94a3b8' }} />
                     <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wide">{stage.name}</span>
                     <span className="text-xs text-slate-400 ml-auto">{stageLeads.length}</span>
                   </div>
-
-                  {/* Cards */}
                   <div className="flex-1 overflow-y-auto p-2 space-y-2">
                     {stageLeads.map((lead) => (
                       <Link key={lead.id} href={`/leads/${lead.id}`}
                         className="block bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-3 hover:border-slate-300 dark:hover:border-slate-600 hover:shadow-sm transition-all">
-                        {/* Priority + Source */}
                         <div className="flex items-center justify-between mb-1.5">
                           <PriorityBadge priority={lead.priority} size="sm" />
                           <SourceIcon source={lead.source} size="sm" />
                         </div>
-                        {/* Name */}
-                        <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
-                          {fullName(lead.first_name, lead.last_name)}
-                        </p>
-                        {/* Destination */}
-                        {lead.destination && (
-                          <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">{lead.destination}</p>
-                        )}
-                        {/* Bottom: time + reminder indicator */}
+                        <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{fullName(lead.first_name, lead.last_name)}</p>
+                        {lead.destination && <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">{lead.destination}</p>}
                         <div className="flex items-center gap-2 mt-2 text-[11px] text-slate-400">
                           <span>{timeAgo(lead.last_activity_at || lead.created_at)}</span>
-                          {lead.next_followup_at && (
-                            <span className="flex items-center gap-0.5"><Bell size={10} /> Reminder</span>
-                          )}
+                          {lead.next_followup_at && <span className="flex items-center gap-0.5"><Bell size={10} /> Reminder</span>}
                         </div>
                       </Link>
                     ))}
-                    {stageLeads.length === 0 && (
-                      <div className="text-xs text-slate-300 dark:text-slate-600 text-center py-6">Niciun lead</div>
-                    )}
+                    {stageLeads.length === 0 && <div className="text-xs text-slate-300 dark:text-slate-600 text-center py-6">Niciun lead</div>}
                   </div>
                 </div>
               )
@@ -306,71 +246,74 @@ export default function PipelinePage() {
           </div>
         )}
 
-        {/* ========== LIST VIEW ========== */}
+        {/* ===== LIST VIEW cu paginație ===== */}
         {viewMode === 'list' && (
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-100 dark:border-slate-800 text-left">
-                  <th className="px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Nume</th>
-                  <th className="px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Destinație</th>
-                  <th className="px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Sursă</th>
-                  <th className="px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Status</th>
-                  <th className="px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Prioritate</th>
-                  <th className="px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Activitate</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredLeads.map((lead) => {
-                  const stage = stages.find((s) => s.slug === lead.status)
-                  return (
-                    <tr key={lead.id} className="border-b border-slate-50 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                      <td className="px-4 py-3">
-                        <Link href={`/leads/${lead.id}`} className="font-medium text-slate-900 dark:text-slate-100 hover:text-blue-600 dark:hover:text-blue-400">
-                          {fullName(lead.first_name, lead.last_name)}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{lead.destination || '—'}</td>
-                      <td className="px-4 py-3"><SourceIcon source={lead.source} size="sm" /></td>
-                      <td className="px-4 py-3"><StatusBadge name={stage?.name || lead.status} color={stage?.color} /></td>
-                      <td className="px-4 py-3"><PriorityBadge priority={lead.priority} size="sm" /></td>
-                      <td className="px-4 py-3 text-xs text-slate-400">{timeAgo(lead.last_activity_at || lead.created_at)}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-            {filteredLeads.length === 0 && (
-              <div className="text-sm text-slate-400 text-center py-12">Niciun lead de afișat.</div>
-            )}
-          </div>
+          <>
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-100 dark:border-slate-800 text-left">
+                    <th className="px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Nume</th>
+                    <th className="px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Destinație</th>
+                    <th className="px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Sursă</th>
+                    <th className="px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Status</th>
+                    <th className="px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Prioritate</th>
+                    <th className="px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Activitate</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedLeads.map((lead) => {
+                    const stage = stages.find((s) => s.slug === lead.status)
+                    return (
+                      <tr key={lead.id} className="border-b border-slate-50 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                        <td className="px-4 py-3">
+                          <Link href={`/leads/${lead.id}`} className="font-medium text-slate-900 dark:text-slate-100 hover:text-blue-600 dark:hover:text-blue-400">
+                            {fullName(lead.first_name, lead.last_name)}
+                          </Link>
+                        </td>
+                        <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{lead.destination || '—'}</td>
+                        <td className="px-4 py-3"><SourceIcon source={lead.source} size="sm" /></td>
+                        <td className="px-4 py-3"><StatusBadge name={stage?.name || lead.status} color={stage?.color} /></td>
+                        <td className="px-4 py-3"><PriorityBadge priority={lead.priority} size="sm" /></td>
+                        <td className="px-4 py-3 text-xs text-slate-400">{timeAgo(lead.last_activity_at || lead.created_at)}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+              {filteredLeads.length === 0 && <div className="text-sm text-slate-400 text-center py-12">Niciun lead de afișat.</div>}
+            </div>
+
+            {/* Pagination */}
+            <Pagination
+              currentPage={currentPage}
+              totalItems={filteredLeads.length}
+              itemsPerPage={itemsPerPage}
+              onPageChange={setCurrentPage}
+              onItemsPerPageChange={setItemsPerPage}
+            />
+          </>
         )}
       </div>
 
-      {/* ========== WON VALUE MODAL ========== */}
+      {/* ===== WON VALUE MODAL ===== */}
       {showWonModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white dark:bg-slate-900 rounded-xl shadow-xl w-full max-w-sm p-6 mx-4 border border-slate-200 dark:border-slate-700">
-            <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-400 flex items-center justify-center mx-auto mb-4">
-              <Trophy size={24} />
-            </div>
+            <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-400 flex items-center justify-center mx-auto mb-4"><Trophy size={24} /></div>
             <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 text-center mb-1">Lead câștigat</h3>
             <p className="text-sm text-slate-500 dark:text-slate-400 text-center mb-5">Introdu valoarea booking-ului (opțional).</p>
             <div className="mb-5">
               <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Valoare (EUR)</label>
-              <input type="number" min={0} step={0.01} value={wonValue}
-                onChange={(e) => setWonValue(e.target.value)} placeholder="ex: 2500" autoFocus
+              <input type="number" min={0} step={0.01} value={wonValue} onChange={(e) => setWonValue(e.target.value)}
+                placeholder="ex: 2500" autoFocus
                 className="w-full px-3 py-2.5 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500" />
             </div>
             <div className="flex items-center gap-3">
               <button onClick={() => { setShowWonModal(false); setWonLeadId(null); setWonValue('') }}
-                className="flex-1 px-4 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
-                Anulează
-              </button>
+                className="flex-1 px-4 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">Anulează</button>
               <button onClick={handleWon}
-                className="flex-1 px-4 py-2.5 text-sm font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
-                Confirmă
-              </button>
+                className="flex-1 px-4 py-2.5 text-sm font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">Confirmă</button>
             </div>
           </div>
         </div>
