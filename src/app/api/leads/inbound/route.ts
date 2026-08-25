@@ -36,6 +36,27 @@ function scoreToPriority(score: number): 'low' | 'medium' | 'high' {
   return 'low'
 }
 
+// Cele 3 surse JinfoCruise: fără deduplicare (fiecare cerere/rezervare e un
+// eveniment de business separat) și cu mapare proprie de câmpuri.
+const JINFOCRUISE_SOURCES = ['jinfocruise_request', 'jinfocruise_contact', 'jinfocruise_reservation']
+
+function jinfocruiseBudgetRange(source: string, metadata: any): string | null {
+  if (!metadata) return null
+  if (source === 'jinfocruise_request' && metadata.price) {
+    const perPersoana = metadata.price_type !== 'total'
+    return `${metadata.price} EUR${perPersoana ? '/persoană' : ' total'}`
+  }
+  if (source === 'jinfocruise_reservation' && metadata.gross_amount) {
+    return `${metadata.gross_amount} EUR total`
+  }
+  return null
+}
+
+function jinfocruisePriority(source: string): 'low' | 'medium' | 'high' {
+  if (source === 'jinfocruise_reservation') return 'high' // rezervare confirmată — urgentă
+  return 'medium' // jinfocruise_request și jinfocruise_contact
+}
+
 type ConvMsg = { role?: string; content?: string }
 
 function formatConversation(conversation: ConvMsg[]): string {
@@ -89,13 +110,16 @@ export async function POST(request: NextRequest) {
         .single()
 
       if (leadSource) {
-        source = leadSource.slug
+        // body.source are mereu prioritate — cheia poate fi comună mai multor
+        // integrări (ex. JinfoCruise folosește aceeași cheie ca website_form).
+        if (!body.source) source = leadSource.slug
         sourceDetail = sourceDetail || leadSource.name
       }
     }
 
-    // Deduplication
-    if (body.email || body.phone) {
+    // Deduplication — dezactivată pentru sursele JinfoCruise: fiecare cerere/
+    // rezervare e un eveniment de business separat, chiar dacă e același client.
+    if ((body.email || body.phone) && !JINFOCRUISE_SOURCES.includes(source)) {
       const sevenDaysAgo = new Date()
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
 
@@ -160,6 +184,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const isJinfocruise = JINFOCRUISE_SOURCES.includes(source)
+
     const leadData: LeadInsert = {
       first_name: body.first_name || body.name?.split(' ')[0] || null,
       last_name: body.last_name || body.name?.split(' ').slice(1).join(' ') || null,
@@ -174,10 +200,14 @@ export async function POST(request: NextRequest) {
       nr_adults: body.nr_adults || 1,
       nr_children: body.nr_children || 0,
       children_ages: body.children_ages || null,
-      budget_range: body.budget_range || null,
-      trip_type: body.trip_type || null,
+      budget_range: isJinfocruise
+        ? jinfocruiseBudgetRange(source, body.metadata) || body.budget_range || null
+        : (body.budget_range || null),
+      trip_type: isJinfocruise ? 'croaziera' : (body.trip_type || null),
       message: body.message || null,
-      priority: typeof body.interest_score === 'number' ? scoreToPriority(body.interest_score) : (body.priority || 'medium'),
+      priority: isJinfocruise
+        ? jinfocruisePriority(source)
+        : (typeof body.interest_score === 'number' ? scoreToPriority(body.interest_score) : (body.priority || 'medium')),
       status: 'new',
     }
 
