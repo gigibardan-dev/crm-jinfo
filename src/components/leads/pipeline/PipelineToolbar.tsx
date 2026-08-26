@@ -30,16 +30,21 @@ export function PipelineToolbar({
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
       <div className="flex items-center gap-2 flex-wrap">
-        <button onClick={onToggleFilters}
-          className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium border rounded-lg transition-colors ${
-            hasActiveFilters ? 'border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-400'
-              : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
-          }`}>
-          <Filter size={14} /> Filtre
+        {/* Grup vizual „pilulă”, dar cu două <button> FRAȚI (nu unul în altul —
+            HTML nu permite <button> imbricat și React 19 aruncă eroare de
+            hidratare pentru asta), ca butonul X de reset să rămână separat
+            clickabil de butonul de toggle filtre. */}
+        <div className={`inline-flex items-center gap-1.5 pl-3 py-1.5 text-sm font-medium border rounded-lg transition-colors ${
+          hasActiveFilters ? 'pr-1.5 border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-400'
+            : 'pr-3 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+        }`}>
+          <button type="button" onClick={onToggleFilters} className="inline-flex items-center gap-1.5">
+            <Filter size={14} /> Filtre
+          </button>
           {hasActiveFilters && (
-            <button onClick={(e) => { e.stopPropagation(); onClearFilters() }} className="ml-1 p-0.5 rounded hover:bg-blue-100 dark:hover:bg-blue-900"><X size={12} /></button>
+            <button type="button" onClick={onClearFilters} className="p-0.5 rounded hover:bg-blue-100 dark:hover:bg-blue-900"><X size={12} /></button>
           )}
-        </button>
+        </div>
         <span className="text-sm text-slate-400">{visibleCount} leaduri{hasActiveFilters ? ' (filtrate)' : ''}</span>
       </div>
       <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5">

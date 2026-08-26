@@ -5,27 +5,30 @@
  *
  * Vizualizarea Kanban din pagina Pipeline: o coloană per pipeline stage
  * (vizibile: cele non-terminale + won/lost), fiecare cu scroll propriu și
- * cardurile de lead (prioritate, sursă, nume, destinație, ultima
- * activitate, indicator reminder). Pur prezentațională — primește lista
- * deja filtrată și stage-urile vizibile.
+ * cardurile de lead (prioritate, sursă, nume, destinație, agentul alocat,
+ * ultima activitate, indicator reminder). Pur prezentațională — primește
+ * lista deja filtrată și stage-urile vizibile. Numele agentului se
+ * actualizează automat la realocare (pagina părinte reface fetch-ul pe
+ * orice schimbare din tabela `leads`, deci `leads` ajunge mereu la zi).
  * Extras din src/app/(app)/leads/page.tsx — comportament identic.
  */
 
 'use client'
 
 import Link from 'next/link'
-import { Bell } from 'lucide-react'
+import { Bell, User } from 'lucide-react'
 import { SourceIcon } from '@/components/leads/SourceIcon'
 import { PriorityBadge } from '@/components/leads/PriorityBadge'
-import type { Lead, PipelineStage } from '@/lib/types/database'
+import type { Lead, PipelineStage, Profile } from '@/lib/types/database'
 import { fullName, timeAgo } from '@/lib/utils'
 
 interface KanbanBoardProps {
   visibleStages: PipelineStage[]
   leads: Lead[]
+  agentsById?: Record<string, Profile>
 }
 
-export function KanbanBoard({ visibleStages, leads }: KanbanBoardProps) {
+export function KanbanBoard({ visibleStages, leads, agentsById }: KanbanBoardProps) {
   function getLeadsForStage(slug: string) {
     return leads.filter((l) => l.status === slug)
   }
@@ -42,21 +45,29 @@ export function KanbanBoard({ visibleStages, leads }: KanbanBoardProps) {
               <span className="text-xs text-slate-400 ml-auto">{stageLeads.length}</span>
             </div>
             <div className="flex-1 overflow-y-auto p-2 space-y-2">
-              {stageLeads.map((lead) => (
-                <Link key={lead.id} href={`/leads/${lead.id}`}
-                  className="block bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-3 hover:border-slate-300 dark:hover:border-slate-600 hover:shadow-sm transition-all">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <PriorityBadge priority={lead.priority} size="sm" />
-                    <SourceIcon source={lead.source} size="sm" />
-                  </div>
-                  <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{fullName(lead.first_name, lead.last_name)}</p>
-                  {lead.destination && <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">{lead.destination}</p>}
-                  <div className="flex items-center gap-2 mt-2 text-[11px] text-slate-400">
-                    <span>{timeAgo(lead.last_activity_at || lead.created_at)}</span>
-                    {lead.next_followup_at && <span className="flex items-center gap-0.5"><Bell size={10} /> Reminder</span>}
-                  </div>
-                </Link>
-              ))}
+              {stageLeads.map((lead) => {
+                const agent = lead.assigned_to ? agentsById?.[lead.assigned_to] : undefined
+                return (
+                  <Link key={lead.id} href={`/leads/${lead.id}`}
+                    className="block bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-3 hover:border-slate-300 dark:hover:border-slate-600 hover:shadow-sm transition-all">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <PriorityBadge priority={lead.priority} size="sm" />
+                      <SourceIcon source={lead.source} size="sm" />
+                    </div>
+                    <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{fullName(lead.first_name, lead.last_name)}</p>
+                    {lead.destination && <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">{lead.destination}</p>}
+                    {agent && (
+                      <p className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 truncate">
+                        <User size={10} className="shrink-0" /> {agent.full_name}
+                      </p>
+                    )}
+                    <div className="flex items-center gap-2 mt-2 text-[11px] text-slate-400">
+                      <span>{timeAgo(lead.last_activity_at || lead.created_at)}</span>
+                      {lead.next_followup_at && <span className="flex items-center gap-0.5"><Bell size={10} /> Reminder</span>}
+                    </div>
+                  </Link>
+                )
+              })}
               {stageLeads.length === 0 && <div className="text-xs text-slate-300 dark:text-slate-600 text-center py-6">Niciun lead</div>}
             </div>
           </div>

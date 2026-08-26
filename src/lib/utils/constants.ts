@@ -41,6 +41,12 @@ export const PRIORITY_CONFIG = {
   urgent: { label: 'Urgent', color: '#dc2626', bgColor: '#fee2e2' },
 } as const
 
+// Statusuri considerate „în lucru" — folosit pe Dashboard (card „În Lucru") și
+// pe pagina Pipeline (filtrul de status „În lucru", pentru link-ul din Dashboard)
+export const IN_PROGRESS_STATUSES = [
+  'contacted', 'quote_sent', 'follow_up', 'quote_accepted', 'booking_pending', 'payment_received', 'confirmed',
+] as const
+
 // Date format constants
 export const DATE_FORMAT = 'dd MMM yyyy'
 export const DATETIME_FORMAT = 'dd MMM yyyy, HH:mm'

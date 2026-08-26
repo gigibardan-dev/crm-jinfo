@@ -19,6 +19,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Header } from '@/components/layout/Header'
 import { Inbox, TrendingUp, Clock, AlertTriangle, Users, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
+import { IN_PROGRESS_STATUSES } from '@/lib/utils/constants'
 
 interface DashboardStats {
   totalNew: number
@@ -28,8 +29,6 @@ interface DashboardStats {
   totalLost: number
   todayReminders: number
 }
-
-const IN_PROGRESS_STATUSES = ['contacted', 'quote_sent', 'follow_up', 'quote_accepted', 'booking_pending', 'payment_received', 'confirmed']
 
 export default function DashboardPage() {
   const { profile, isAdminOrManager } = useAuth()
@@ -88,11 +87,11 @@ export default function DashboardPage() {
   // KPI card definitions
   const cards = [
     { label: 'Leaduri Noi', value: stats.totalNew, icon: Inbox, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-950', href: '/leads/inbox', show: isAdminOrManager },
-    { label: 'Alocate', value: stats.totalAssigned, icon: Users, color: 'text-indigo-600 dark:text-indigo-400', bg: 'bg-indigo-50 dark:bg-indigo-950', href: '/leads', show: true },
-    { label: 'În Lucru', value: stats.totalInProgress, icon: Clock, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950', href: '/leads', show: true },
-    { label: 'Câștigate', value: stats.totalWon, icon: TrendingUp, color: 'text-green-600 dark:text-green-400', bg: 'bg-green-50 dark:bg-green-950', href: '/leads', show: true },
-    { label: 'Pierdute', value: stats.totalLost, icon: AlertTriangle, color: 'text-red-500 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-950', href: '/leads', show: isAdminOrManager },
-    { label: 'Remindere Azi', value: stats.todayReminders, icon: CheckCircle2, color: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-50 dark:bg-orange-950', href: '/leads', show: true },
+    { label: 'Alocate', value: stats.totalAssigned, icon: Users, color: 'text-indigo-600 dark:text-indigo-400', bg: 'bg-indigo-50 dark:bg-indigo-950', href: '/leads?status=assigned', show: true },
+    { label: 'În Lucru', value: stats.totalInProgress, icon: Clock, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950', href: '/leads?status=in_progress', show: true },
+    { label: 'Câștigate', value: stats.totalWon, icon: TrendingUp, color: 'text-green-600 dark:text-green-400', bg: 'bg-green-50 dark:bg-green-950', href: '/leads?status=won', show: true },
+    { label: 'Pierdute', value: stats.totalLost, icon: AlertTriangle, color: 'text-red-500 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-950', href: '/leads?status=lost', show: isAdminOrManager },
+    { label: 'Remindere Azi', value: stats.todayReminders, icon: CheckCircle2, color: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-50 dark:bg-orange-950', href: '/leads?reminders=due', show: true },
   ]
 
   return (
@@ -156,7 +155,7 @@ export default function DashboardPage() {
                 Verifică leadurile care necesită follow-up.
               </p>
             </div>
-            <Link href="/leads"
+            <Link href="/leads?reminders=due"
               className="px-4 py-2 text-sm font-medium bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-center shrink-0">
               Vezi Leaduri
             </Link>
