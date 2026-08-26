@@ -7,7 +7,11 @@
  * reîmprospătează sesiunea Supabase din cookies și redirecționează
  * utilizatorii neautentificați către /login, respectiv pe cei deja
  * autentificați departe de /login. Rutele de webhook (/api/leads/inbound,
- * /api/leads/facebook) sunt excluse din protecția de auth.
+ * /api/leads/facebook, /api/leads/sync/facebook-sheets) sunt excluse din
+ * protecția de auth — nu au sesiune de browser (apelate server-to-server
+ * sau de un pinger extern), au propria autentificare în interiorul rutei
+ * (x-api-key la webhook-uri, CRON_SECRET la sync — vezi
+ * src/app/api/leads/sync/facebook-sheets/route.ts).
  */
 
 import { createServerClient } from '@supabase/ssr'
@@ -51,9 +55,10 @@ export async function middleware(request: NextRequest) {
     request.nextUrl.pathname.startsWith(path)
   )
 
-  // API routes for webhooks (no auth needed)
+  // API routes for webhooks (no auth needed) — fiecare are propria autentificare internă
   const isWebhookRoute = request.nextUrl.pathname.startsWith('/api/leads/inbound') ||
-    request.nextUrl.pathname.startsWith('/api/leads/facebook')
+    request.nextUrl.pathname.startsWith('/api/leads/facebook') ||
+    request.nextUrl.pathname.startsWith('/api/leads/sync/facebook-sheets')
 
   if (isWebhookRoute) {
     return supabaseResponse
