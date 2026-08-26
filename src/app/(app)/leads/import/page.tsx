@@ -3,16 +3,20 @@
 /**
  * src/app/(app)/leads/import/page.tsx
  *
- * Import Leaduri Page — import în masă dintr-un fișier .xlsx
+ * Import Leaduri Page — import în masă, din modelul .xlsx SAU direct din
+ * exportul brut Facebook Lead Ads (.csv / .xls) — formatul e detectat
+ * automat de API, vezi src/lib/leads/import-facebook.ts.
  *
  * Owner de state (surse, fișier ales, upload, raport rezultat) — markup-ul
  * e delegat componentelor din src/components/leads/import/*. Acces: admin
  * sau manager (vezi Sidebar.tsx și verificarea din API route).
  *
- * Flux: descarcă model (GET /api/leads/import/template) → completează în
- * Excel → alege sursa implicită → încarcă fișierul (POST /api/leads/import)
- * → raport per rând (importat / importat cu avertismente / ignorat).
- * Leadurile importate intră nealocate, status „new”, vizibile în Inbox.
+ * Flux: descarcă model (GET /api/leads/import/template) sau descarcă
+ * direct leadurile din Meta → alege sursa implicită (plasă de siguranță,
+ * fișierele Facebook au deja sursa corectă) → încarcă fișierul
+ * (POST /api/leads/import) → raport per rând (importat / importat cu
+ * avertismente / ignorat). Leadurile importate intră nealocate, status
+ * „new”, vizibile în Inbox.
  *
  * Validarea + explicarea erorilor stă în src/lib/leads/import-parse.ts;
  * coloanele acceptate (și modelul .xlsx) pornesc din
@@ -117,8 +121,9 @@ export default function LeadsImportPage() {
       <Header title="Import Leaduri" />
       <div className="p-4 sm:p-6 max-w-4xl space-y-6">
         <p className="text-sm text-slate-500 dark:text-slate-400 -mt-2">
-          Adaugă mai multe leaduri deodată dintr-un fișier Excel. Leadurile importate intră nealocate în Inbox,
-          exact ca cele venite din canalele online — apoi le aloci agenților de acolo.
+          Adaugă mai multe leaduri deodată — din modelul nostru .xlsx sau direct din exportul Facebook Lead Ads
+          (.csv / .xls, nemodificat). Leadurile importate intră nealocate în Inbox, exact ca cele venite din
+          canalele online — apoi le aloci agenților de acolo.
         </p>
 
         <ImportUploadForm
@@ -135,7 +140,12 @@ export default function LeadsImportPage() {
         {result && (
           <>
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100">Rezultat import</h3>
+              <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                Rezultat import
+                <span className="text-xs font-normal px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                  {result.sourceFormat === 'facebook' ? 'Export Facebook Lead Ads' : 'Model .xlsx'}
+                </span>
+              </h3>
               <button onClick={handleReset}
                 className="inline-flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300">
                 <RotateCcw size={12} /> Importă alt fișier

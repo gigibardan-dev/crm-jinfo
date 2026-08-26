@@ -1,9 +1,11 @@
 /**
  * src/lib/leads/import-parse.ts
  *
- * Motorul de validare pentru importul de leaduri din Excel — funcții pure,
- * fără dependențe de Next.js/Supabase, ca să poată fi testate izolat.
- * Folosit din `src/app/api/leads/import/route.ts`.
+ * Motorul de validare pentru importul de leaduri — funcții pure, fără
+ * dependențe de Next.js/Supabase, ca să poată fi testate izolat. Folosit
+ * din `src/app/api/leads/import/route.ts`, indiferent dacă rândurile vin
+ * din modelul nostru .xlsx sau din exportul Facebook normalizat de
+ * `src/lib/leads/import-facebook.ts` — o singură logică de validare.
  *
  * Model de erori (două niveluri, cerut explicit — „sistem complet cu
  * erori, cu explicare erori”):
@@ -39,6 +41,8 @@ export interface ImportApiResponse {
   imported: number
   skipped: number
   withWarnings: number
+  /** Formatul de fișier detectat — 'model' = .xlsx-ul nostru, 'facebook' = exportul brut .csv/.xls din Facebook Lead Ads. */
+  sourceFormat: 'model' | 'facebook'
   rows: ImportRowReport[]
 }
 

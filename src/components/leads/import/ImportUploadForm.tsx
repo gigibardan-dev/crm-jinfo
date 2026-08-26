@@ -8,8 +8,9 @@
  * Cardul de sus din `/leads/import`: link de descărcare a modelului .xlsx,
  * select pentru sursa implicită (aplicată rândurilor fără coloană „Sursă"
  * completată sau necunoscută), zona de selecție a fișierului
- * (`ImportDropzone`) și butonul de import. Fără state propriu de date —
- * primește totul din pagina părinte.
+ * (`ImportDropzone` — acceptă și modelul .xlsx, și exportul brut .csv/.xls
+ * din Facebook Lead Ads, detectat automat de API) și butonul de import.
+ * Fără state propriu de date — primește totul din pagina părinte.
  */
 
 import { Download, UploadCloud, Loader2 } from 'lucide-react'
@@ -34,9 +35,10 @@ export function ImportUploadForm({
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-4 sm:p-5 space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100">1. Descarcă modelul</h3>
+          <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100">1. Alege sursa fișierului</h3>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 max-w-md">
-            Fișierul .xlsx cu coloanele corecte + o foaie „Instrucțiuni” cu explicații pentru fiecare câmp.
+            Descarcă modelul .xlsx și completează-l manual, SAU descarcă direct leadurile din Meta Ads Manager
+            (Leads Center → Download, format .csv sau .xls) și urcă fișierul așa cum e — se recunoaște automat.
           </p>
         </div>
         <a

@@ -5,11 +5,13 @@
  *
  * ImportDropzone
  *
- * Zonă de selecție a fișierului .xlsx pentru `/leads/import` — click pentru
- * a răsfoi sau drag & drop. Starea de „hover” la drag (`dragActive`) e
- * strict vizuală și locală componentei (nu are sens în pagina părinte);
- * fișierul selectat urcă în pagină prin `onFileSelected`, ca să poată fi
- * trimis la submit.
+ * Zonă de selecție a fișierului pentru `/leads/import` — click pentru a
+ * răsfoi sau drag & drop. Acceptă modelul nostru .xlsx SAU exportul brut
+ * din Facebook Lead Ads (.csv / .xls) — formatul e detectat automat de
+ * `POST /api/leads/import` (vezi `src/lib/leads/import-facebook.ts`).
+ * Starea de „hover” la drag (`dragActive`) e strict vizuală și locală
+ * componentei (nu are sens în pagina părinte); fișierul selectat urcă în
+ * pagină prin `onFileSelected`, ca să poată fi trimis la submit.
  */
 
 import { useRef, useState } from 'react'
@@ -78,11 +80,11 @@ export function ImportDropzone({ selectedFile, onFileSelected, disabled }: Impor
       <p className="text-sm text-slate-600 dark:text-slate-400">
         <span className="font-medium text-blue-600 dark:text-blue-400">Alege un fișier</span> sau trage-l aici
       </p>
-      <p className="text-xs text-slate-400">Doar .xlsx, maxim 5 MB</p>
+      <p className="text-xs text-slate-400">.xlsx (model) sau .csv / .xls (export Facebook Lead Ads), maxim 5 MB</p>
       <input
         ref={inputRef}
         type="file"
-        accept=".xlsx"
+        accept=".xlsx,.csv,.xls"
         disabled={disabled}
         onChange={(e) => pickFile(e.target.files)}
         className="hidden"

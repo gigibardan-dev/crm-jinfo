@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:import": "tsx scripts/test-import-parse.ts && tsx scripts/test-import-roundtrip.ts"
+    "test:import": "tsx scripts/test-import-parse.ts && tsx scripts/test-import-roundtrip.ts && tsx scripts/test-import-facebook.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

@@ -1,22 +1,39 @@
 /**
  * src/app/api/leads/import/route.ts
  *
- * POST /api/leads/import — import în masă de leaduri dintr-un fișier .xlsx
+ * POST /api/leads/import — import în masă de leaduri, din DOUĂ formate
+ * posibile de fișier:
+ * - .xlsx — modelul nostru descărcabil (GET /api/leads/import/template),
+ *   citit cu `read-excel-file`.
+ * - .csv sau .xls — exportul BRUT, nemodificat, din Facebook Lead Ads
+ *   (Meta Ads Manager → Leads Center → Download), recunoscut și normalizat
+ *   de `parseFacebookExport()` din `src/lib/leads/import-facebook.ts`.
+ *   Cine administrează reclamele poate descărca leadurile din Meta și le
+ *   urcă direct, fără copy-paste în model.
  *
  * Acces: admin sau manager (verificat din `profiles.role`, ca la celelalte
  * rute din `src/app/api/*`). Primește `multipart/form-data` cu:
- * - `file` — fișierul .xlsx (model descărcabil din GET /api/leads/import/template)
+ * - `file` — fișierul (.xlsx / .csv / .xls)
  * - `defaultSource` — slug-ul sursei folosite pentru rândurile fără coloană
- *   „Sursă” completată sau cu o valoare necunoscută acolo
+ *   „Sursă” completată sau cu o valoare necunoscută acolo (pentru fișierele
+ *   Facebook practic nu se ajunge aici — sursa e „Facebook Ads”, deja
+ *   activă din seed — dar rămâne ca plasă de siguranță)
  *
- * Fiecare rând e parsat/validat cu `parseImportRow()` din
- * `src/lib/leads/import-parse.ts` (acolo e explicat modelul de erori vs.
- * avertismente). După parsare, rândurile care nu au fost sărite sunt
- * verificate în bloc pentru posibile duplicate (telefon/email deja
- * existent în CRM) — nu blochează importul, doar adaugă un avertisment.
- * Leadurile importate intră nealocate, cu status `new` (apar în Inbox,
- * exact ca leadurile venite din canalele online), la fel ca la webhook-ul
- * din `src/app/api/leads/inbound/route.ts`.
+ * Indiferent de format, ambele ajung la aceeași foaie „antet + rânduri”,
+ * deci de aici încolo pipeline-ul e IDENTIC: `matchHeaders()` +
+ * `parseImportRow()` din `src/lib/leads/import-parse.ts` (acolo e explicat
+ * modelul de erori vs. avertismente) — o singură logică de validare,
+ * indiferent de sursa fișierului. După parsare, rândurile care nu au fost
+ * sărite sunt verificate în bloc pentru posibile duplicate (telefon/email
+ * deja existent în CRM) — nu blochează importul, doar adaugă un
+ * avertisment. Leadurile importate intră nealocate, cu status `new` (apar
+ * în Inbox, exact ca leadurile venite din canalele online), la fel ca la
+ * webhook-ul din `src/app/api/leads/inbound/route.ts`.
+ *
+ * Pentru fișierele Facebook, rândul original (toate coloanele, inclusiv
+ * cele fără echivalent în CRM — id-uri de campanie/reclamă/set, platform,
+ * is_organic, lead_status etc.) e păstrat integral în
+ * `leads.source_raw_data.facebook`, ca nimic să nu se piardă.
  *
  * Răspuns: JSON cu rezumat (totalRows/imported/skipped/withWarnings) +
  * detaliu per rând (rowNumber, displayName, status, warnings/skipReason) —
@@ -29,6 +46,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { readSheet } from 'read-excel-file/node'
 import { matchHeaders, countMatchedHeaders, parseImportRow, type ParsedImportRow, type ImportApiResponse } from '@/lib/leads/import-parse'
 import { IMPORT_FIELDS } from '@/lib/leads/import-fields'
+import { parseFacebookExport, FacebookFormatError } from '@/lib/leads/import-facebook'
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
 const MAX_DATA_ROWS = 2000
@@ -58,8 +76,11 @@ export async function POST(request: NextRequest) {
   if (!(file instanceof File)) {
     return NextResponse.json({ error: 'Niciun fișier trimis.' }, { status: 400 })
   }
-  if (!file.name.toLowerCase().endsWith('.xlsx')) {
-    return NextResponse.json({ error: 'Fișierul trebuie să fie .xlsx (Excel). Descarcă modelul din pagină.' }, { status: 400 })
+  const lowerName = file.name.toLowerCase()
+  const isXlsx = lowerName.endsWith('.xlsx')
+  const isFacebookFile = lowerName.endsWith('.csv') || lowerName.endsWith('.xls')
+  if (!isXlsx && !isFacebookFile) {
+    return NextResponse.json({ error: 'Fișierul trebuie să fie .xlsx (modelul nostru) sau .csv/.xls (exportul din Facebook Lead Ads).' }, { status: 400 })
   }
   if (file.size > MAX_FILE_SIZE) {
     return NextResponse.json({ error: `Fișierul e prea mare (${(file.size / 1024 / 1024).toFixed(1)} MB) — maxim 5 MB.` }, { status: 400 })
@@ -82,18 +103,37 @@ export async function POST(request: NextRequest) {
 
   const buffer = Buffer.from(await file.arrayBuffer())
 
-  let sheetRows: unknown[][]
-  try {
-    sheetRows = (await readSheet(buffer)) as unknown[][]
-  } catch {
-    return NextResponse.json({ error: 'Fișierul nu poate fi citit — verifică că e un .xlsx valid, nesalvat cu parolă.' }, { status: 400 })
+  let headerRow: unknown[]
+  let dataRows: unknown[][]
+  let facebookRawRecords: Record<string, string>[] | null = null
+  let sourceFormat: ImportApiResponse['sourceFormat'] = 'model'
+
+  if (isXlsx) {
+    let sheetRows: unknown[][]
+    try {
+      sheetRows = (await readSheet(buffer)) as unknown[][]
+    } catch {
+      return NextResponse.json({ error: 'Fișierul nu poate fi citit — verifică că e un .xlsx valid, nesalvat cu parolă.' }, { status: 400 })
+    }
+    if (sheetRows.length === 0) {
+      return NextResponse.json({ error: 'Fișierul e gol.' }, { status: 400 })
+    }
+    ;[headerRow, ...dataRows] = sheetRows
+  } else {
+    try {
+      const parsed = parseFacebookExport(buffer, file.name)
+      headerRow = parsed.headerRow
+      dataRows = parsed.dataRows
+      facebookRawRecords = parsed.rawRecords
+      sourceFormat = 'facebook'
+    } catch (err) {
+      const message = err instanceof FacebookFormatError
+        ? err.message
+        : 'Fișierul nu poate fi citit ca export Facebook Lead Ads.'
+      return NextResponse.json({ error: message }, { status: 400 })
+    }
   }
 
-  if (sheetRows.length === 0) {
-    return NextResponse.json({ error: 'Fișierul e gol.' }, { status: 400 })
-  }
-
-  const [headerRow, ...dataRows] = sheetRows
   const columnIndex = matchHeaders(headerRow)
 
   if (countMatchedHeaders(columnIndex) === 0) {
@@ -106,7 +146,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: `Fișierul are ${dataRows.length} rânduri de date — maxim ${MAX_DATA_ROWS} per import. Împarte-l în fișiere mai mici.` }, { status: 400 })
   }
 
-  // Rândul 1 e antetul -> primul rând de date e rândul 2 din Excel
+  // Rândul 1 e antetul -> primul rând de date e rândul 2 din fișier (același număr pentru fișierele Facebook)
+  const facebookRawByRowNumber = new Map<number, Record<string, string>>()
+  if (facebookRawRecords) {
+    dataRows.forEach((_, i) => facebookRawByRowNumber.set(i + 2, facebookRawRecords![i]))
+  }
+
   const parsedRows = dataRows
     .map((row, i) => parseImportRow(row, i + 2, columnIndex, sources, defaultSource))
     .filter((r): r is ParsedImportRow => r !== null) // scoate rândurile complet goale, silențios
@@ -152,11 +197,20 @@ export async function POST(request: NextRequest) {
   // Inserare în bloc a leadurilor valide — nealocate, status `new` (intră în Inbox)
   let insertedIds: string[] = []
   if (importable.length > 0) {
-    const payload = importable.map((row) => ({
-      ...row.lead!,
-      source_raw_data: { imported_by: user.id, imported_at: new Date().toISOString(), original_row: row.rowNumber },
-      status: 'new',
-    }))
+    const payload = importable.map((row) => {
+      const facebookRaw = facebookRawByRowNumber.get(row.rowNumber)
+      return {
+        ...row.lead!,
+        source_raw_data: {
+          imported_by: user.id,
+          imported_at: new Date().toISOString(),
+          original_row: row.rowNumber,
+          import_format: sourceFormat,
+          ...(facebookRaw ? { facebook: facebookRaw } : {}),
+        },
+        status: 'new',
+      }
+    })
 
     const { data: inserted, error: insertError } = await adminClient
       .from('leads')
@@ -170,12 +224,13 @@ export async function POST(request: NextRequest) {
     insertedIds = (inserted || []).map((l) => l.id)
 
     if (insertedIds.length === importable.length) {
+      const activitySource = sourceFormat === 'facebook' ? 'exportul Facebook Lead Ads' : 'fișierul Excel'
       await adminClient.from('lead_activities').insert(
         insertedIds.map((leadId, i) => ({
           lead_id: leadId,
           user_id: user.id,
           type: 'system' as const,
-          content: `Lead importat din fișier Excel (rând ${importable[i].rowNumber})`,
+          content: `Lead importat din ${activitySource} (rând ${importable[i].rowNumber})`,
         }))
       )
     }
@@ -194,6 +249,7 @@ export async function POST(request: NextRequest) {
     imported: importable.length,
     skipped: parsedRows.length - importable.length,
     withWarnings: rowsReport.filter((r) => r.status === 'imported' && r.warnings.length > 0).length,
+    sourceFormat,
     rows: rowsReport,
   }
 
