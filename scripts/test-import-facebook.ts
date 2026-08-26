@@ -15,11 +15,16 @@
  * campania, destinația preia numele formularului, iar întrebarea custom din
  * formular (coloana „0” din exportul Facebook) ajunge integral în mesaj —
  * deci rulează mai departe și prin `parseImportRow()`, ca în ruta reală.
+ *
+ * Testează și `mapFacebookRows()` direct (fără fișier, doar `string[][]`) —
+ * exact cum o folosește `src/app/api/leads/sync/facebook-sheets/route.ts`
+ * cu rândurile primite de la Google Sheets API — cu antete în altă ordine
+ * și o întrebare custom cu etichetă reală (nu doar coloana „0”).
  */
 
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { parseFacebookExport } from '../src/lib/leads/import-facebook'
+import { parseFacebookExport, mapFacebookRows } from '../src/lib/leads/import-facebook'
 import { matchHeaders, parseImportRow } from '../src/lib/leads/import-parse'
 
 const FIXTURES = join(__dirname, 'fixtures')
@@ -72,5 +77,25 @@ for (let i = 0; i < 3; i++) {
     `Parity CSV vs XLS eșuată la rândul ${i + 2}:\nCSV: ${JSON.stringify(a)}\nXLS: ${JSON.stringify(b)}`
   )
 }
+
+// --- mapFacebookRows() direct, ca sincronizarea din Google Sheets — antete reordonate + etichetă reală pe întrebarea custom ---
+const sheetsStyleRows = [
+  ['EMAIL', 'PHONE', 'FULL_NAME', 'id', 'campaign_name', 'ad_name', 'form_name', 'Ce destinație vă interesează?', 'lead_status'],
+  ['ana.pop@test.ro', '+40711222333', 'Ana Pop', 'l:999888777', 'Campanie Grecia', 'Reclamă Grecia Vară', 'Grecia Vara', 'Santorini', 'CREATED'],
+]
+const sheetsMapped = mapFacebookRows(sheetsStyleRows)
+const sheetsColumnIndex = matchHeaders(sheetsMapped.headerRow)
+const sheetsRows = sheetsMapped.dataRows.map((row, i) => parseImportRow(row, i + 2, sheetsColumnIndex, SOURCES, 'other'))
+const sheetsLead = sheetsRows[0]?.lead
+
+console.log('\n--- mapFacebookRows() direct (stil Google Sheets) ---')
+console.log(JSON.stringify(sheetsRows, null, 2))
+
+console.assert(sheetsLead?.first_name === 'Ana' && sheetsLead?.last_name === 'Pop', 'mapFacebookRows: nume greșit')
+console.assert(sheetsLead?.email === 'ana.pop@test.ro', 'mapFacebookRows: email greșit')
+console.assert(sheetsLead?.phone === '+40711222333', 'mapFacebookRows: telefon greșit')
+console.assert(sheetsLead?.destination === 'Grecia Vara', 'mapFacebookRows: destinație greșită')
+console.assert(sheetsLead?.message === 'Ce destinație vă interesează?: Santorini', `mapFacebookRows: mesaj cu etichetă greșit: ${sheetsLead?.message}`)
+console.assert(sheetsMapped.rawRecords[0].id === 'l:999888777', 'mapFacebookRows: id-ul original ar trebui păstrat în rawRecords, pentru deduplicarea din sync')
 
 console.log('\nALL ASSERTIONS PASSED (if no FAIL lines above)')

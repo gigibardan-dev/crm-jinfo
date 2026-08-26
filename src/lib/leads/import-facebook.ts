@@ -27,6 +27,12 @@
  * Recunoașterea coloanelor standard e după alias (case-insensitive), nu
  * poziție, ca să reziste dacă Meta schimbă ordinea sau adaugă coloane noi
  * pe formulare viitoare — vezi FIELD_ALIASES mai jos.
+ *
+ * `mapFacebookRows()` (partea de mai jos care nu ține de decodare) e
+ * exportată separat și refolosită DIRECT de `src/lib/leads/google-sheets.ts`
+ * — sincronizarea automată din Google Sheets (Facebook → Sheet → CRM)
+ * primește rândurile deja ca `string[][]` de la Sheets API, deci sare peste
+ * pasul de decodare .csv/.xls și aplică exact aceeași mapare de coloane.
  */
 
 import { IMPORT_FIELDS } from '@/lib/leads/import-fields'
@@ -192,8 +198,18 @@ export function parseFacebookExport(buffer: Buffer, filename: string): FacebookP
     throw new FacebookFormatError('Format de fișier nerecunoscut.')
   }
 
+  return mapFacebookRows(rawRows)
+}
+
+/**
+ * Partea „pură” — primește rânduri deja ca text (`string[][]`, antet + date)
+ * și le mapează la foaia virtuală IMPORT_FIELDS. Folosită de
+ * `parseFacebookExport()` (după decodare .csv/.xls) ȘI direct de
+ * `src/lib/leads/google-sheets.ts` (rândurile vin deja ca text de la Sheets API).
+ */
+export function mapFacebookRows(rawRows: string[][]): FacebookParseResult {
   if (rawRows.length < 2) {
-    throw new FacebookFormatError('Fișierul nu conține rânduri de date sub antet.')
+    throw new FacebookFormatError('Fișierul/foaia nu conține rânduri de date sub antet.')
   }
 
   const [rawHeader, ...rawDataRows] = rawRows
