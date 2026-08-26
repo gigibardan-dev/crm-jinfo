@@ -1,5 +1,15 @@
 'use client'
 
+/**
+ * src/app/(app)/agents/page.tsx
+ *
+ * Agents List Page — Admin/Manager only
+ *
+ * Grid de carduri, unul per agent/manager activ, cu inițiale, rol,
+ * indicator de încărcare (verde/galben/roșu după nr. leaduri active) și
+ * mini-statistici (active/câștigate/pierdute). Click → /agents/[id].
+ */
+
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { createClient } from '@/lib/supabase/client'
@@ -65,7 +75,7 @@ export default function AgentsPage() {
     return (
       <>
         <Header title="Agenți" />
-        <div className="p-6 text-sm text-slate-500 dark:text-slate-400">Nu ai acces la această pagină.</div>
+        <div className="p-4 sm:p-6 text-sm text-slate-500 dark:text-slate-400">Nu ai acces la această pagină.</div>
       </>
     )
   }
@@ -79,15 +89,15 @@ export default function AgentsPage() {
   return (
     <>
       <Header title="Agenți" />
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         {loading ? (
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {[...Array(4)].map((_, i) => (
               <div key={i} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-5 animate-pulse h-36" />
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {agentStats.map((stat) => (
               <Link
                 key={stat.profile.id}

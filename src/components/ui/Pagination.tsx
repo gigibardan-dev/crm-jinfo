@@ -1,8 +1,10 @@
 'use client'
 
 /**
+ * src/components/ui/Pagination.tsx
+ *
  * Pagination Component
- * 
+ *
  * Reusable pagination with:
  * - Previous / Next buttons
  * - Page number display

@@ -1,3 +1,14 @@
+/**
+ * src/components/leads/SourceIcon.tsx
+ *
+ * SourceIcon / SourceIconInline
+ *
+ * Icon + culoare pe sursă de lead (facebook, tiktok, google, website_form,
+ * jinfocruise, chat_ai, email, walk_in, phone, referral, other), cu
+ * etichetă text opțională. `SourceIconInline` e varianta minimală
+ * (doar icon-ul, dimensiune custom) pentru contexte compacte.
+ */
+
 import {
   Megaphone,
   Music,

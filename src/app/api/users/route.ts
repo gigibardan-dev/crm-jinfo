@@ -1,3 +1,14 @@
+/**
+ * src/app/api/users/route.ts
+ *
+ * POST /api/users — creare cont nou (admin only)
+ *
+ * Verifică sesiunea + rolul curent (trebuie admin), creează utilizatorul în
+ * Supabase Auth (email confirmat automat, fără flow de verificare) via
+ * service-role client, apoi inserează rândul în `profiles`. Dacă inserarea
+ * profilului eșuează, șterge contul auth creat, ca să nu rămână orfan.
+ */
+
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'

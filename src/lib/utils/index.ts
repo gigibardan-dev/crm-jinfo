@@ -1,3 +1,14 @@
+/**
+ * src/lib/utils/index.ts
+ *
+ * Utilitare generale — formatare & clase Tailwind
+ *
+ * Helpere fără dependențe de Supabase/React folosite peste tot în UI:
+ * merge de clase Tailwind (`cn`), formatare dată/oră/telefon în română,
+ * inițiale, nume complet, trunchiere text, formatare interval de
+ * călătorie și nr. călători.
+ */
+
 import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 import { formatDistanceToNow, format } from 'date-fns'

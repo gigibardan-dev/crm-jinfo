@@ -1,8 +1,10 @@
 'use client'
 
 /**
+ * src/components/ui/SearchDialog.tsx
+ *
  * SearchDialog - Global lead search (Cmd+K / Ctrl+K)
- * 
+ *
  * Searches leads by: name, phone, email, destination
  * Shows results with source icon, status, and priority
  * Click result → navigate to lead detail
@@ -113,7 +115,7 @@ export function SearchDialog({ open, onClose }: SearchDialogProps) {
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
 
       {/* Dialog */}
-      <div className="relative mx-auto mt-[15vh] w-full max-w-lg">
+      <div className="relative mx-auto mt-[15vh] w-full max-w-lg px-4 sm:px-0">
         <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
 
           {/* Search input */}

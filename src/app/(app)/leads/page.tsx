@@ -1,29 +1,31 @@
-'use client'
-
 /**
+ * src/app/(app)/leads/page.tsx
+ *
  * Pipeline Page — Kanban + List cu paginație
- * 
+ *
+ * Owner de state (leaduri, filtre, paginație, realtime) pentru pagina
+ * Pipeline. Markup-ul e delegat unor componente din
+ * src/components/leads/pipeline/*, fișierul rămâne axat pe date/filtrare.
+ *
  * Kanban: afișează toate leadurile (scroll per coloană)
  * List: paginat la 25/50/100 per pagină
  * Filtre: agent, sursă, prioritate, perioadă
  * Won value modal la marcare câștigat
  */
 
+'use client'
+
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { useToast } from '@/components/ui/Toast'
 import { createClient } from '@/lib/supabase/client'
 import { Header } from '@/components/layout/Header'
-import { SourceIcon } from '@/components/leads/SourceIcon'
-import { PriorityBadge } from '@/components/leads/PriorityBadge'
-import { StatusBadge } from '@/components/leads/StatusBadge'
-import { Pagination } from '@/components/ui/Pagination'
 import type { Lead, PipelineStage, Profile, LeadSource, Database } from '@/lib/types/database'
-import { fullName, timeAgo } from '@/lib/utils'
-import { Bell, List, Kanban, Filter, X, Trophy } from 'lucide-react'
-import Link from 'next/link'
-
-type ViewMode = 'kanban' | 'list'
+import { PipelineToolbar, type PipelineViewMode } from '@/components/leads/pipeline/PipelineToolbar'
+import { PipelineFilterBar } from '@/components/leads/pipeline/PipelineFilterBar'
+import { KanbanBoard } from '@/components/leads/pipeline/KanbanBoard'
+import { LeadsListView } from '@/components/leads/pipeline/LeadsListView'
+import { PipelineWonModal } from '@/components/leads/pipeline/PipelineWonModal'
 
 export default function PipelinePage() {
   const { profile, isAdminOrManager } = useAuth()
@@ -35,7 +37,7 @@ export default function PipelinePage() {
   const [agents, setAgents] = useState<Profile[]>([])
   const [sources, setSources] = useState<LeadSource[]>([])
   const [loading, setLoading] = useState(true)
-  const [viewMode, setViewMode] = useState<ViewMode>('kanban')
+  const [viewMode, setViewMode] = useState<PipelineViewMode>('kanban')
 
   // --- Filters ---
   const [filterAgent, setFilterAgent] = useState<string>('all')
@@ -98,7 +100,7 @@ export default function PipelinePage() {
   // Reset page when filters change
   useEffect(() => { setCurrentPage(1) }, [filterAgent, filterSource, filterPriority, filterDateFrom, filterDateTo])
 
-  const hasActiveFilters = filterAgent !== 'all' || filterSource !== 'all' || filterPriority !== 'all' || filterDateFrom || filterDateTo
+  const hasActiveFilters = filterAgent !== 'all' || filterSource !== 'all' || filterPriority !== 'all' || !!filterDateFrom || !!filterDateTo
 
   function clearFilters() {
     setFilterAgent('all'); setFilterSource('all'); setFilterPriority('all')
@@ -113,7 +115,6 @@ export default function PipelinePage() {
 
   // Kanban helpers
   const visibleStages = stages.filter((s) => !s.is_terminal || s.slug === 'won' || s.slug === 'lost')
-  function getLeadsForStage(slug: string) { return filteredLeads.filter((l) => l.status === slug) }
 
   // --- Won modal ---
   async function handleWon() {
@@ -135,12 +136,10 @@ export default function PipelinePage() {
     fetchData()
   }
 
-  const selectClass = "px-3 py-1.5 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-
   if (loading) {
     return (
       <><Header title="Pipeline" />
-        <div className="p-6"><div className="flex gap-4 overflow-x-auto">
+        <div className="p-4 sm:p-6"><div className="flex gap-4 overflow-x-auto">
           {[...Array(5)].map((_, i) => <div key={i} className="w-72 flex-shrink-0 bg-slate-100 dark:bg-slate-800 rounded-xl p-3 animate-pulse h-96" />)}
         </div></div>
       </>
@@ -150,173 +149,60 @@ export default function PipelinePage() {
   return (
     <>
       <Header title="Pipeline" />
-      <div className="p-6">
-        {/* Toolbar */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <button onClick={() => setShowFilters(!showFilters)}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium border rounded-lg transition-colors ${
-                hasActiveFilters ? 'border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-400'
-                  : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
-              }`}>
-              <Filter size={14} /> Filtre
-              {hasActiveFilters && (
-                <button onClick={(e) => { e.stopPropagation(); clearFilters() }} className="ml-1 p-0.5 rounded hover:bg-blue-100 dark:hover:bg-blue-900"><X size={12} /></button>
-              )}
-            </button>
-            <span className="text-sm text-slate-400">{filteredLeads.length} leaduri{hasActiveFilters ? ' (filtrate)' : ''}</span>
-          </div>
-          <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5">
-            <button onClick={() => setViewMode('kanban')}
-              className={`p-1.5 rounded-md transition-colors ${viewMode === 'kanban' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm' : 'text-slate-400'}`}>
-              <Kanban size={16} />
-            </button>
-            <button onClick={() => setViewMode('list')}
-              className={`p-1.5 rounded-md transition-colors ${viewMode === 'list' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm' : 'text-slate-400'}`}>
-              <List size={16} />
-            </button>
-          </div>
-        </div>
+      <div className="p-4 sm:p-6">
+        <PipelineToolbar
+          onToggleFilters={() => setShowFilters(!showFilters)}
+          hasActiveFilters={hasActiveFilters}
+          onClearFilters={clearFilters}
+          visibleCount={filteredLeads.length}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+        />
 
-        {/* Filter bar */}
         {showFilters && (
-          <div className="flex flex-wrap items-center gap-3 mb-4 p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl">
-            {isAdminOrManager && (
-              <select value={filterAgent} onChange={(e) => setFilterAgent(e.target.value)} className={selectClass}>
-                <option value="all">Toți agenții</option>
-                {agents.map((a) => <option key={a.id} value={a.id}>{a.full_name}</option>)}
-              </select>
-            )}
-            <select value={filterSource} onChange={(e) => setFilterSource(e.target.value)} className={selectClass}>
-              <option value="all">Toate sursele</option>
-              {sources.map((s) => <option key={s.slug} value={s.slug}>{s.name}</option>)}
-            </select>
-            <select value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)} className={selectClass}>
-              <option value="all">Orice prioritate</option>
-              <option value="urgent">Urgent</option>
-              <option value="high">Ridicat</option>
-              <option value="medium">Mediu</option>
-              <option value="low">Scăzut</option>
-            </select>
-            <div className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400">
-              <span>De la</span>
-              <input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)}
-                className="px-2 py-1.5 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              <span>până la</span>
-              <input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)}
-                className="px-2 py-1.5 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-            {hasActiveFilters && <button onClick={clearFilters} className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 underline">Resetează</button>}
-          </div>
+          <PipelineFilterBar
+            isAdminOrManager={isAdminOrManager}
+            agents={agents}
+            sources={sources}
+            filterAgent={filterAgent}
+            onFilterAgentChange={setFilterAgent}
+            filterSource={filterSource}
+            onFilterSourceChange={setFilterSource}
+            filterPriority={filterPriority}
+            onFilterPriorityChange={setFilterPriority}
+            filterDateFrom={filterDateFrom}
+            onFilterDateFromChange={setFilterDateFrom}
+            filterDateTo={filterDateTo}
+            onFilterDateToChange={setFilterDateTo}
+            hasActiveFilters={hasActiveFilters}
+            onClearFilters={clearFilters}
+          />
         )}
 
-        {/* ===== KANBAN ===== */}
         {viewMode === 'kanban' && (
-          <div className="flex gap-3 overflow-x-auto pb-4" style={{ minHeight: '70vh' }}>
-            {visibleStages.map((stage) => {
-              const stageLeads = getLeadsForStage(stage.slug)
-              return (
-                <div key={stage.id} className="w-72 flex-shrink-0 bg-slate-50 dark:bg-slate-900 rounded-xl flex flex-col border border-slate-100 dark:border-slate-800">
-                  <div className="flex items-center gap-2 px-3 py-2.5 border-b border-slate-100 dark:border-slate-800">
-                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: stage.color || '#94a3b8' }} />
-                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wide">{stage.name}</span>
-                    <span className="text-xs text-slate-400 ml-auto">{stageLeads.length}</span>
-                  </div>
-                  <div className="flex-1 overflow-y-auto p-2 space-y-2">
-                    {stageLeads.map((lead) => (
-                      <Link key={lead.id} href={`/leads/${lead.id}`}
-                        className="block bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-3 hover:border-slate-300 dark:hover:border-slate-600 hover:shadow-sm transition-all">
-                        <div className="flex items-center justify-between mb-1.5">
-                          <PriorityBadge priority={lead.priority} size="sm" />
-                          <SourceIcon source={lead.source} size="sm" />
-                        </div>
-                        <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{fullName(lead.first_name, lead.last_name)}</p>
-                        {lead.destination && <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">{lead.destination}</p>}
-                        <div className="flex items-center gap-2 mt-2 text-[11px] text-slate-400">
-                          <span>{timeAgo(lead.last_activity_at || lead.created_at)}</span>
-                          {lead.next_followup_at && <span className="flex items-center gap-0.5"><Bell size={10} /> Reminder</span>}
-                        </div>
-                      </Link>
-                    ))}
-                    {stageLeads.length === 0 && <div className="text-xs text-slate-300 dark:text-slate-600 text-center py-6">Niciun lead</div>}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+          <KanbanBoard visibleStages={visibleStages} leads={filteredLeads} />
         )}
 
-        {/* ===== LIST VIEW cu paginație ===== */}
         {viewMode === 'list' && (
-          <>
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-100 dark:border-slate-800 text-left">
-                    <th className="px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Nume</th>
-                    <th className="px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Destinație</th>
-                    <th className="px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Sursă</th>
-                    <th className="px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Status</th>
-                    <th className="px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Prioritate</th>
-                    <th className="px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Activitate</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginatedLeads.map((lead) => {
-                    const stage = stages.find((s) => s.slug === lead.status)
-                    return (
-                      <tr key={lead.id} className="border-b border-slate-50 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                        <td className="px-4 py-3">
-                          <Link href={`/leads/${lead.id}`} className="font-medium text-slate-900 dark:text-slate-100 hover:text-blue-600 dark:hover:text-blue-400">
-                            {fullName(lead.first_name, lead.last_name)}
-                          </Link>
-                        </td>
-                        <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{lead.destination || '—'}</td>
-                        <td className="px-4 py-3"><SourceIcon source={lead.source} size="sm" /></td>
-                        <td className="px-4 py-3"><StatusBadge name={stage?.name || lead.status} color={stage?.color} /></td>
-                        <td className="px-4 py-3"><PriorityBadge priority={lead.priority} size="sm" /></td>
-                        <td className="px-4 py-3 text-xs text-slate-400">{timeAgo(lead.last_activity_at || lead.created_at)}</td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-              {filteredLeads.length === 0 && <div className="text-sm text-slate-400 text-center py-12">Niciun lead de afișat.</div>}
-            </div>
-
-            {/* Pagination */}
-            <Pagination
-              currentPage={currentPage}
-              totalItems={filteredLeads.length}
-              itemsPerPage={itemsPerPage}
-              onPageChange={setCurrentPage}
-              onItemsPerPageChange={setItemsPerPage}
-            />
-          </>
+          <LeadsListView
+            paginatedLeads={paginatedLeads}
+            totalFilteredCount={filteredLeads.length}
+            stages={stages}
+            currentPage={currentPage}
+            itemsPerPage={itemsPerPage}
+            onPageChange={setCurrentPage}
+            onItemsPerPageChange={setItemsPerPage}
+          />
         )}
       </div>
 
-      {/* ===== WON VALUE MODAL ===== */}
       {showWonModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-xl w-full max-w-sm p-6 mx-4 border border-slate-200 dark:border-slate-700">
-            <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-400 flex items-center justify-center mx-auto mb-4"><Trophy size={24} /></div>
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 text-center mb-1">Lead câștigat</h3>
-            <p className="text-sm text-slate-500 dark:text-slate-400 text-center mb-5">Introdu valoarea booking-ului (opțional).</p>
-            <div className="mb-5">
-              <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Valoare (EUR)</label>
-              <input type="number" min={0} step={0.01} value={wonValue} onChange={(e) => setWonValue(e.target.value)}
-                placeholder="ex: 2500" autoFocus
-                className="w-full px-3 py-2.5 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500" />
-            </div>
-            <div className="flex items-center gap-3">
-              <button onClick={() => { setShowWonModal(false); setWonLeadId(null); setWonValue('') }}
-                className="flex-1 px-4 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">Anulează</button>
-              <button onClick={handleWon}
-                className="flex-1 px-4 py-2.5 text-sm font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">Confirmă</button>
-            </div>
-          </div>
-        </div>
+        <PipelineWonModal
+          wonValue={wonValue}
+          onWonValueChange={setWonValue}
+          onCancel={() => { setShowWonModal(false); setWonLeadId(null); setWonValue('') }}
+          onConfirm={handleWon}
+        />
       )}
     </>
   )

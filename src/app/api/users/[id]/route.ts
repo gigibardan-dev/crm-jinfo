@@ -1,3 +1,15 @@
+/**
+ * src/app/api/users/[id]/route.ts
+ *
+ * PATCH /api/users/:id — editare cont existent (admin only)
+ *
+ * Verifică sesiunea + rolul curent (trebuie admin). Actualizează selectiv,
+ * prin service-role client: email/parolă în Supabase Auth (doar dacă
+ * trimise), și câmpurile din `profiles` (full_name, email, phone, role,
+ * is_active) — folosit atât din pagina de profil agent (editare completă),
+ * cât și din /settings (toggle rapid activ/inactiv, doar `is_active`).
+ */
+
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'

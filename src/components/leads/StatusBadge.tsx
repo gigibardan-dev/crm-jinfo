@@ -1,3 +1,12 @@
+/**
+ * src/components/leads/StatusBadge.tsx
+ *
+ * StatusBadge
+ *
+ * Pastilă rotunjită cu punct colorat + nume de pipeline stage, folosită
+ * în lista de leaduri (Pipeline list view, profil agent).
+ */
+
 import { cn } from '@/lib/utils'
 
 interface StatusBadgeProps {

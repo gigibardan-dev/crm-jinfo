@@ -1,125 +1,44 @@
+/**
+ * src/app/api/leads/inbound/route.ts
+ *
+ * POST /api/leads/inbound — endpoint webhook generic pentru toate canalele
+ * de leaduri (jinfotours.ro, Jino chatbot „Carmen AI”, JinfoCruise.ro;
+ * Facebook Lead Ads — netot). Identifică sursa prin `x-api-key` (fallback
+ * la `body.source` dacă cheia lipsește; `body.source` are însă mereu
+ * prioritate — vezi fix-ul de precedență din jos), deduplică pe email/
+ * telefon în fereastra de 7 zile (dezactivat pentru sursele JinfoCruise),
+ * inserează lead-ul cu mapările specifice per sursă, loghează activitatea
+ * și notifică toți managerii/adminii activi.
+ *
+ * Logica de mapare specifică per canal e extrasă în:
+ * - src/lib/leads/cors.ts (CORS pentru apelul din browser jinfotours.ro)
+ * - src/lib/leads/priority.ts (scor interes chat AI → prioritate)
+ * - src/lib/leads/jinfocruise-mapping.ts (câmpuri croazieră din metadata)
+ * - src/lib/leads/chat-transcript.ts (transcript conversație Carmen AI)
+ *
+ * Vezi și: claude/integrari-canale-status.md (status detaliat per canal).
+ */
+
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { Database } from '@/lib/types/database'
+import { corsHeaders } from '@/lib/leads/cors'
+import { scoreToPriority } from '@/lib/leads/priority'
+import {
+  JINFOCRUISE_SOURCES,
+  jinfocruiseBudgetRange,
+  jinfocruisePriority,
+  jinfocruiseDates,
+  jinfocruisePax,
+} from '@/lib/leads/jinfocruise-mapping'
+import { upsertConversationActivity } from '@/lib/leads/chat-transcript'
 
 type LeadInsert = Database['public']['Tables']['leads']['Insert']
 type LeadUpdate = Database['public']['Tables']['leads']['Update']
 type NotificationInsert = Database['public']['Tables']['notifications']['Insert']
 
-// Origini browser cărora le este permis să apeleze acest endpoint direct din JS
-// (server-to-server, ca worker-ul Cloudflare al chatbot-ului Jino, nu are nevoie de CORS).
-const ALLOWED_ORIGINS = [
-  'https://www.jinfotours.ro',
-  'https://jinfotours.ro',
-]
-
-function corsHeaders(origin: string | null) {
-  const headers: Record<string, string> = {
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, x-api-key',
-  }
-  if (origin && ALLOWED_ORIGINS.includes(origin)) {
-    headers['Access-Control-Allow-Origin'] = origin
-    headers['Vary'] = 'Origin'
-  }
-  return headers
-}
-
 export async function OPTIONS(request: NextRequest) {
   return new NextResponse(null, { status: 204, headers: corsHeaders(request.headers.get('origin')) })
-}
-
-// Scor de interes (0-100) → prioritate CRM. "urgent" rămâne mereu setat manual.
-function scoreToPriority(score: number): 'low' | 'medium' | 'high' {
-  if (score >= 60) return 'high'
-  if (score >= 30) return 'medium'
-  return 'low'
-}
-
-// Cele 3 surse JinfoCruise: fără deduplicare (fiecare cerere/rezervare e un
-// eveniment de business separat) și cu mapare proprie de câmpuri.
-const JINFOCRUISE_SOURCES = ['jinfocruise_request', 'jinfocruise_contact', 'jinfocruise_reservation']
-
-function jinfocruiseBudgetRange(source: string, metadata: any): string | null {
-  if (!metadata) return null
-  if (source === 'jinfocruise_request' && metadata.price) {
-    const perPersoana = metadata.price_type !== 'total'
-    return `${metadata.price} EUR${perPersoana ? '/persoană' : ' total'}`
-  }
-  if (source === 'jinfocruise_reservation' && metadata.gross_amount) {
-    return `${metadata.gross_amount} EUR total`
-  }
-  return null
-}
-
-function jinfocruisePriority(source: string): 'low' | 'medium' | 'high' {
-  if (source === 'jinfocruise_reservation') return 'high' // rezervare confirmată — urgentă
-  return 'medium' // jinfocruise_request și jinfocruise_contact
-}
-
-function addDays(dateStr: string, days: number): string | null {
-  const d = new Date(dateStr)
-  if (isNaN(d.getTime())) return null
-  d.setDate(d.getDate() + days)
-  return d.toISOString().split('T')[0]
-}
-
-// sailing_date + nights sunt de încredere (vin din sistemul de rezervări) —
-// se mapează direct pe travel_date_from/to.
-function jinfocruiseDates(metadata: any): { travel_date_from: string | null; travel_date_to: string | null } {
-  const sailingDate: string | null = metadata?.sailing_date || null
-  if (!sailingDate) return { travel_date_from: null, travel_date_to: null }
-  const nights = typeof metadata?.nights === 'number' ? metadata.nights : null
-  return {
-    travel_date_from: sailingDate,
-    travel_date_to: nights ? addDays(sailingDate, nights) : null,
-  }
-}
-
-// Nr. adulți/copii: se mapează DOAR când sursa e sigură (jinfocruise_reservation
-// trimite no_adults/no_children explicit din sistemul de rezervări). La
-// jinfocruise_request avem doar `occupancy` — un total ambiguu (poate include
-// și copii, poate fi per-cabină) — NU se presupune nimic; rămâne vizibil în
-// panoul de detalii croazieră din raw data, iar agentul completează manual
-// nr_adults/nr_children pe lead dacă e nevoie, citind mesajul/ocupanța.
-function jinfocruisePax(source: string, metadata: any): { nr_adults?: number; nr_children?: number } {
-  if (source !== 'jinfocruise_reservation' || !metadata) return {}
-  const result: { nr_adults?: number; nr_children?: number } = {}
-  if (typeof metadata.no_adults === 'number') result.nr_adults = metadata.no_adults
-  if (typeof metadata.no_children === 'number') result.nr_children = metadata.no_children
-  return result
-}
-
-type ConvMsg = { role?: string; content?: string }
-
-function formatConversation(conversation: ConvMsg[]): string {
-  return conversation
-    .map((m) => `${m.role === 'assistant' ? '🤖 Carmen' : '👤 Client'}: ${m.content || ''}`)
-    .join('\n')
-}
-
-// Inserează/actualizează intrarea "vie" cu transcriptul conversației pe un lead.
-// Șterge varianta anterioară și reinserează, ca să apară mereu sus (cea mai recentă) în timeline.
-async function upsertConversationActivity(
-  supabase: ReturnType<typeof createAdminClient>,
-  leadId: string,
-  conversation: ConvMsg[]
-) {
-  if (!Array.isArray(conversation) || conversation.length === 0) return
-
-  await supabase
-    .from('lead_activities')
-    .delete()
-    .eq('lead_id', leadId)
-    .eq('type', 'system')
-    .contains('metadata', { kind: 'chat_transcript' })
-
-  await supabase.from('lead_activities').insert({
-    lead_id: leadId,
-    type: 'system' as const,
-    content: formatConversation(conversation),
-    metadata: { kind: 'chat_transcript', message_count: conversation.length },
-  })
 }
 
 export async function POST(request: NextRequest) {

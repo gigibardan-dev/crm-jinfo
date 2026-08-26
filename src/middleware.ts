@@ -1,3 +1,15 @@
+/**
+ * src/middleware.ts
+ *
+ * Next.js Middleware — Auth session refresh + route protection
+ *
+ * Rulează pe (aproape) fiecare request (vezi `config.matcher` mai jos):
+ * reîmprospătează sesiunea Supabase din cookies și redirecționează
+ * utilizatorii neautentificați către /login, respectiv pe cei deja
+ * autentificați departe de /login. Rutele de webhook (/api/leads/inbound,
+ * /api/leads/facebook) sunt excluse din protecția de auth.
+ */
+
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 

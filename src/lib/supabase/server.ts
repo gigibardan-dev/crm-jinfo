@@ -1,3 +1,15 @@
+/**
+ * src/lib/supabase/server.ts
+ *
+ * createClient — Supabase server client (SSR)
+ *
+ * Client Supabase pentru Server Components / API routes, legat de cookies
+ * (`next/headers`) — respectă RLS, cu sesiunea utilizatorului curent.
+ * Folosit în API routes precum src/app/api/users/route.ts pentru a
+ * verifica cine face request-ul (înainte de a folosi admin.ts pentru
+ * mutații care ocolesc RLS).
+ */
+
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import type { Database } from '@/lib/types/database'

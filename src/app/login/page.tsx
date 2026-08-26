@@ -1,5 +1,15 @@
 'use client'
 
+/**
+ * src/app/login/page.tsx
+ *
+ * Login Page
+ *
+ * Formular simplu email + parolă (Supabase Auth). Nu există
+ * self-registration — conturile sunt create doar de admin din /settings.
+ * La succes redirecționează către /dashboard.
+ */
+
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'

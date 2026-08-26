@@ -1,3 +1,13 @@
+/**
+ * src/app/layout.tsx
+ *
+ * Root Layout
+ *
+ * Layout-ul rădăcină Next.js (App Router) — setează <html>/<body>, metadata
+ * globală (titlu/descriere) și importă CSS-ul global (Tailwind + tema).
+ * Nu conține navigare sau auth — acelea sunt în src/app/(app)/layout.tsx.
+ */
+
 import type { Metadata } from 'next'
 import './globals.css'
 

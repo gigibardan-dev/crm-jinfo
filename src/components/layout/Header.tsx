@@ -1,28 +1,33 @@
 'use client'
 
 /**
+ * src/components/layout/Header.tsx
+ *
  * Header Component
- * 
+ *
  * Top bar with:
+ * - Hamburger menu button, mobile/tablet only (sub `lg`) — deschide sertarul Sidebar
  * - Page title (left)
- * - Search button with Cmd+K shortcut (right)
+ * - Search button with Cmd+K shortcut (right) — eticheta text/kbd ascunsă sub `sm`
  * - Theme toggle dark/light (right)
  * - Notification bell with unread count (right)
  */
 
-import { Bell, Search } from 'lucide-react'
+import { Bell, Search, Menu } from 'lucide-react'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { createClient } from '@/lib/supabase/client'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { ThemeToggle } from '@/components/ui/ThemeToggle'
 import { SearchDialog } from '@/components/ui/SearchDialog'
+import { useMobileNav } from '@/lib/hooks/useMobileNav'
 
 export function Header({ title }: { title?: string }) {
   const { profile } = useAuth()
   const [unreadCount, setUnreadCount] = useState(0)
   const [searchOpen, setSearchOpen] = useState(false)
   const supabase = createClient()
+  const { toggle } = useMobileNav()
 
   // Fetch unread notification count + realtime subscription
   useEffect(() => {
@@ -66,18 +71,25 @@ export function Header({ title }: { title?: string }) {
 
   return (
     <>
-      <header className="h-14 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex items-center justify-between px-6">
-        <div>
+      <header className="h-14 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex items-center justify-between px-4 lg:px-6 gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <button
+            onClick={toggle}
+            className="lg:hidden -ml-1 p-2 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 shrink-0"
+            aria-label="Deschide meniul"
+          >
+            <Menu size={20} />
+          </button>
           {title && (
-            <h1 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{title}</h1>
+            <h1 className="text-lg font-semibold text-slate-900 dark:text-slate-100 truncate">{title}</h1>
           )}
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 shrink-0">
           {/* Search trigger */}
           <button
             onClick={() => setSearchOpen(true)}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-700 transition-colors"
+            className="flex items-center gap-2 px-2.5 sm:px-3 py-1.5 text-sm text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-700 transition-colors"
           >
             <Search size={14} />
             <span className="hidden sm:inline">Caută...</span>

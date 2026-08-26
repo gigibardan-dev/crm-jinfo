@@ -1,5 +1,15 @@
 'use client'
 
+/**
+ * src/components/ui/ThemeToggle.tsx
+ *
+ * ThemeToggle
+ *
+ * Buton mic în Header pentru comutare light/dark. Preferința e ținută în
+ * `localStorage['theme']` și aplicată prin clasa `dark` pe `<html>`
+ * (Tailwind dark mode). Implicit: dark (dacă nu există nimic salvat).
+ */
+
 import { useEffect, useState } from 'react'
 import { Moon, Sun } from 'lucide-react'
 

@@ -1,3 +1,14 @@
+/**
+ * src/components/ui/button.tsx
+ *
+ * Button (shadcn/ui)
+ *
+ * Componentă de buton generată de shadcn/ui, pe baza @base-ui/react și
+ * class-variance-authority — variante (default/outline/secondary/ghost/
+ * destructive/link) și dimensiuni (xs/sm/default/lg/icon...). Bază pentru
+ * restul UI-ului custom din src/components/ui și src/components/leads.
+ */
+
 import { Button as ButtonPrimitive } from "@base-ui/react/button"
 import { cva, type VariantProps } from "class-variance-authority"
 

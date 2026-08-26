@@ -1,6 +1,12 @@
 -- ============================================
+-- supabase/migrations/002_activities_edit_delete.sql
+--
 -- Migration: Allow comment edit/delete on lead_activities
 -- Run in Supabase SQL Editor
+--
+-- Adaugă RLS policies UPDATE/DELETE pe lead_activities, ca să funcționeze
+-- editarea/ștergerea comentariilor din LeadTimeline (owner-ul comentariului
+-- sau admin) — vezi src/components/leads/LeadTimeline.tsx.
 -- ============================================
 
 -- Allow users to update their own comments, admin can update any

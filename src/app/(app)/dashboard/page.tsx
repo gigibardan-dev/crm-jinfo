@@ -1,8 +1,10 @@
 'use client'
 
 /**
+ * src/app/(app)/dashboard/page.tsx
+ *
  * Dashboard Page
- * 
+ *
  * Adaptat pe rol:
  * - Admin/Manager: vede toate KPI-urile + alerte leaduri nealocate
  * - Agent: vede doar leadurile proprii + remindere
@@ -69,8 +71,8 @@ export default function DashboardPage() {
     return (
       <>
         <Header title="Dashboard" />
-        <div className="p-6">
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="p-4 sm:p-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {[...Array(6)].map((_, i) => (
               <div key={i} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 p-5 animate-pulse">
                 <div className="h-4 bg-slate-100 dark:bg-slate-800 rounded w-24 mb-3" />
@@ -96,7 +98,7 @@ export default function DashboardPage() {
   return (
     <>
       <Header title="Dashboard" />
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         {/* Greeting */}
         <div className="mb-6">
           <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
@@ -108,7 +110,7 @@ export default function DashboardPage() {
         </div>
 
         {/* KPI Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {cards.filter((c) => c.show).map((card) => {
             const Icon = card.icon
             return (
@@ -128,7 +130,7 @@ export default function DashboardPage() {
 
         {/* Alerts */}
         {stats.totalNew > 0 && isAdminOrManager && (
-          <div className="mt-6 bg-blue-50 dark:bg-blue-950 border border-blue-100 dark:border-blue-900 rounded-xl p-4 flex items-center justify-between">
+          <div className="mt-6 bg-blue-50 dark:bg-blue-950 border border-blue-100 dark:border-blue-900 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <p className="text-sm font-medium text-blue-900 dark:text-blue-200">
                 {stats.totalNew} {stats.totalNew === 1 ? 'lead nou nealocat' : 'leaduri noi nealocate'}
@@ -138,14 +140,14 @@ export default function DashboardPage() {
               </p>
             </div>
             <Link href="/leads/inbox"
-              className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+              className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-center shrink-0">
               Deschide Inbox
             </Link>
           </div>
         )}
 
         {stats.todayReminders > 0 && (
-          <div className="mt-4 bg-orange-50 dark:bg-orange-950 border border-orange-100 dark:border-orange-900 rounded-xl p-4 flex items-center justify-between">
+          <div className="mt-4 bg-orange-50 dark:bg-orange-950 border border-orange-100 dark:border-orange-900 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <p className="text-sm font-medium text-orange-900 dark:text-orange-200">
                 Ai {stats.todayReminders} {stats.todayReminders === 1 ? 'reminder' : 'remindere'} scadent{stats.todayReminders === 1 ? '' : 'e'}
@@ -155,7 +157,7 @@ export default function DashboardPage() {
               </p>
             </div>
             <Link href="/leads"
-              className="px-4 py-2 text-sm font-medium bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors">
+              className="px-4 py-2 text-sm font-medium bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-center shrink-0">
               Vezi Leaduri
             </Link>
           </div>

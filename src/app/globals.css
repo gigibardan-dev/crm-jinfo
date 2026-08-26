@@ -1,3 +1,13 @@
+/*
+ * src/app/globals.css
+ *
+ * Global CSS — Tailwind v4 + tema shadcn/ui
+ *
+ * Import-uri Tailwind/shadcn, variabile de temă (light + dark, prin
+ * `@custom-variant dark`) și stiluri globale minime. Importat o singură
+ * dată, din src/app/layout.tsx.
+ */
+
 @import "tailwindcss";
 @import "shadcn/tailwind.css";
 

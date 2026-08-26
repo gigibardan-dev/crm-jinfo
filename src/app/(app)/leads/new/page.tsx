@@ -1,15 +1,20 @@
-'use client'
-
 /**
+ * src/app/(app)/leads/new/page.tsx
+ *
  * New Lead Page — Formular adăugare manuală
- * 
+ *
+ * Owner de state (form + submit) — cele 3 secțiuni de câmpuri sunt delegate
+ * componentelor din src/components/leads/new-lead/*.
+ *
  * Folosit pentru: Walk-in agenție, telefon, referral
  * Lead-ul se creează cu status "assigned" direct la agentul curent
- * 
+ *
  * Fix-uri aplicate:
  * - Câmpuri goale devin null (nu "" care crapă pe DATE columns)
  * - Toast feedback la salvare
  */
+
+'use client'
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
@@ -17,8 +22,11 @@ import { useAuth } from '@/lib/hooks/useAuth'
 import { useToast } from '@/components/ui/Toast'
 import { createClient } from '@/lib/supabase/client'
 import { Header } from '@/components/layout/Header'
-import { TRIP_TYPES } from '@/lib/utils/constants'
 import type { LeadSource } from '@/lib/types/database'
+import { ContactSection } from '@/components/leads/new-lead/ContactSection'
+import { SourceSection } from '@/components/leads/new-lead/SourceSection'
+import { TravelRequestSection } from '@/components/leads/new-lead/TravelRequestSection'
+import { NEW_LEAD_INPUT_CLASS, type NewLeadFormData } from '@/components/leads/new-lead/NewLeadFormTypes'
 
 export default function NewLeadPage() {
   const { profile } = useAuth()
@@ -29,13 +37,13 @@ export default function NewLeadPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<NewLeadFormData>({
     first_name: '', last_name: '', phone: '', email: '',
     source: 'walk_in', source_detail: '',
     destination: '', travel_date_from: '', travel_date_to: '',
     nr_adults: 1, nr_children: 0, children_ages: '',
     budget_range: '', trip_type: '', message: '',
-    priority: 'medium' as const,
+    priority: 'medium',
   })
 
   // Fetch active lead sources for dropdown
@@ -106,112 +114,34 @@ export default function NewLeadPage() {
     router.push(`/leads/${data.id}`)
   }
 
-  const inputClass = "w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-slate-400"
-
   return (
     <>
       <Header title="Lead Nou" />
-      <div className="p-6 max-w-2xl">
+      <div className="p-4 sm:p-6 max-w-2xl">
         <form onSubmit={handleSubmit} className="space-y-6">
 
-          {/* Contact section */}
-          <section>
-            <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-3">Date Contact</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Prenume</label>
-                <input type="text" value={form.first_name} onChange={(e) => updateField('first_name', e.target.value)} className={inputClass} placeholder="Ion" />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Nume</label>
-                <input type="text" value={form.last_name} onChange={(e) => updateField('last_name', e.target.value)} className={inputClass} placeholder="Popescu" />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Telefon</label>
-                <input type="tel" value={form.phone} onChange={(e) => updateField('phone', e.target.value)} className={inputClass} placeholder="0722.123.456" />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Email</label>
-                <input type="email" value={form.email} onChange={(e) => updateField('email', e.target.value)} className={inputClass} placeholder="ion@email.com" />
-              </div>
-            </div>
-          </section>
+          <ContactSection
+            firstName={form.first_name}
+            lastName={form.last_name}
+            phone={form.phone}
+            email={form.email}
+            onChange={updateField}
+          />
 
-          {/* Source section */}
-          <section>
-            <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-3">Sursă</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Sursă lead</label>
-                <select value={form.source} onChange={(e) => updateField('source', e.target.value)} className={inputClass + ' bg-white dark:bg-slate-800'}>
-                  {sources.map((s) => <option key={s.slug} value={s.slug}>{s.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Detalii sursă</label>
-                <input type="text" value={form.source_detail} onChange={(e) => updateField('source_detail', e.target.value)} className={inputClass} placeholder="ex: Campanie Grecia 2026" />
-              </div>
-            </div>
-          </section>
+          <SourceSection
+            sources={sources}
+            source={form.source}
+            sourceDetail={form.source_detail}
+            onChange={updateField}
+          />
 
-          {/* Travel request section */}
-          <section>
-            <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-3">Cerere Călătorie</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Destinație</label>
-                <input type="text" value={form.destination} onChange={(e) => updateField('destination', e.target.value)} className={inputClass} placeholder="Grecia, Santorini" />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Tip călătorie</label>
-                <select value={form.trip_type} onChange={(e) => updateField('trip_type', e.target.value)} className={inputClass + ' bg-white dark:bg-slate-800'}>
-                  <option value="">— selectează —</option>
-                  {TRIP_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Data plecare</label>
-                <input type="date" value={form.travel_date_from} onChange={(e) => updateField('travel_date_from', e.target.value)} className={inputClass} />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Data întoarcere</label>
-                <input type="date" value={form.travel_date_to} onChange={(e) => updateField('travel_date_to', e.target.value)} className={inputClass} />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Nr. adulți</label>
-                <input type="number" min={1} max={20} value={form.nr_adults} onChange={(e) => updateField('nr_adults', e.target.value)} className={inputClass} />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Nr. copii</label>
-                <input type="number" min={0} max={10} value={form.nr_children} onChange={(e) => updateField('nr_children', e.target.value)} className={inputClass} />
-              </div>
-              {Number(form.nr_children) > 0 && (
-                <div className="col-span-2">
-                  <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Vârste copii</label>
-                  <input type="text" value={form.children_ages} onChange={(e) => updateField('children_ages', e.target.value)} className={inputClass} placeholder="ex: 4, 7" />
-                </div>
-              )}
-              <div>
-                <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Buget estimat</label>
-                <input type="text" value={form.budget_range} onChange={(e) => updateField('budget_range', e.target.value)} className={inputClass} placeholder="2000-3000 EUR" />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Prioritate</label>
-                <select value={form.priority} onChange={(e) => updateField('priority', e.target.value)} className={inputClass + ' bg-white dark:bg-slate-800'}>
-                  <option value="low">Scăzut</option>
-                  <option value="medium">Mediu</option>
-                  <option value="high">Ridicat</option>
-                  <option value="urgent">Urgent</option>
-                </select>
-              </div>
-            </div>
-          </section>
+          <TravelRequestSection form={form} onChange={updateField} />
 
           {/* Message */}
           <section>
             <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-3">Mesaj / Note</h3>
             <textarea value={form.message} onChange={(e) => updateField('message', e.target.value)} rows={4}
-              className={inputClass + ' resize-none'} placeholder="Detalii suplimentare despre cererea clientului..." />
+              className={NEW_LEAD_INPUT_CLASS + ' resize-none'} placeholder="Detalii suplimentare despre cererea clientului..." />
           </section>
 
           {/* Error display */}

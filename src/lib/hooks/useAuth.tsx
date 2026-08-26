@@ -1,5 +1,17 @@
 'use client'
 
+/**
+ * src/lib/hooks/useAuth.tsx
+ *
+ * AuthProvider / useAuth
+ *
+ * Context de autentificare pentru zona autentificată a aplicației (montat
+ * din src/app/(app)/layout.tsx). Ține user-ul Supabase + profilul din
+ * `profiles` sincronizate (inclusiv la schimbări de sesiune), și expune
+ * flag-uri de rol (isAdmin/isManager/isAgent/isAdminOrManager) folosite
+ * peste tot pentru guard-uri de UI + acces la pagini/secțiuni.
+ */
+
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'

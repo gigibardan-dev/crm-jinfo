@@ -1,3 +1,19 @@
+/**
+ * src/lib/types/database.ts
+ *
+ * Tipuri Supabase (generate) + tipuri derivate
+ *
+ * Tipul `Database` corespunde schemei Postgres curente (tabele: profiles,
+ * leads, lead_activities, reminders, notifications, pipeline_stages,
+ * lead_sources, lead_attachments — vezi supabase/migrations/*.sql) și e
+ * folosit ca generic pe toți clienții Supabase (src/lib/supabase/*.ts).
+ * Mai jos în fișier sunt și alias-uri comode per tabel (Lead, Profile,
+ * LeadActivity, Reminder, Notification, PipelineStage, LeadSource,
+ * LeadAttachment), câteva tipuri extinse cu join-uri (LeadWithAgent,
+ * LeadActivityWithUser), și enum-urile UserRole/LeadPriority. Regenerat cu
+ * `supabase gen types` — nu se editează manual partea de `Database`.
+ */
+
 export type Json =
   | string
   | number

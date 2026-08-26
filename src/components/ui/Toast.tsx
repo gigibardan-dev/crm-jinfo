@@ -1,8 +1,10 @@
 'use client'
 
 /**
+ * src/components/ui/Toast.tsx
+ *
  * Toast Notification System
- * 
+ *
  * Provides visual feedback for user actions (lead saved, assigned, etc.)
  * 
  * Usage:
@@ -92,7 +94,7 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string)
       className={cn(
         'flex items-start gap-3 px-4 py-3 rounded-xl border shadow-lg',
         'animate-in slide-in-from-top-2 fade-in duration-200',
-        'min-w-[300px] max-w-[420px]',
+        'w-full sm:min-w-[300px] sm:w-auto max-w-[420px]',
         config.containerClass,
       )}
     >
@@ -133,7 +135,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 
       {/* Toast container - fixed top right */}
       {toasts.length > 0 && (
-        <div className="fixed top-4 right-4 z-50 flex flex-col gap-2">
+        <div className="fixed top-4 right-4 left-4 sm:left-auto z-50 flex flex-col gap-2 items-stretch sm:items-end">
           {toasts.map((t) => (
             <ToastItem key={t.id} toast={t} onDismiss={dismissToast} />
           ))}

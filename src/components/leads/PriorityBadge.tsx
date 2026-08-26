@@ -1,3 +1,13 @@
+/**
+ * src/components/leads/PriorityBadge.tsx
+ *
+ * PriorityBadge
+ *
+ * Badge mic colorat (icon + etichetă opțională) pentru prioritatea unui
+ * lead (low/medium/high/urgent). Folosit în Kanban, listă, pagina de
+ * detaliu lead etc.
+ */
+
 import { cn } from '@/lib/utils'
 import { AlertTriangle, ArrowUp, ArrowRight, ArrowDown } from 'lucide-react'
 import type { LeadPriority } from '@/lib/types/database'

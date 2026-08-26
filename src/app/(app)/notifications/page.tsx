@@ -1,8 +1,10 @@
 'use client'
 
 /**
+ * src/app/(app)/notifications/page.tsx
+ *
  * Notifications Page
- * 
+ *
  * Centru de notificări in-app:
  * - Lead alocat, reminder scadent, lead nou, sistem
  * - Marcare individuală sau bulk ca citite
@@ -56,7 +58,7 @@ export default function NotificationsPage() {
   return (
     <>
       <Header title="Notificări" />
-      <div className="p-6 max-w-2xl">
+      <div className="p-4 sm:p-6 max-w-2xl">
         {/* Toolbar */}
         <div className="flex items-center justify-between mb-4">
           <p className="text-sm text-slate-500 dark:text-slate-400">

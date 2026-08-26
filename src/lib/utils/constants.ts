@@ -1,6 +1,8 @@
 /**
+ * src/lib/utils/constants.ts
+ *
  * App Constants
- * 
+ *
  * Centralized config values used across the CRM.
  * Note: Source icons are now handled by SourceIcon component (src/components/leads/SourceIcon.tsx)
  * Note: Priority display is handled by PriorityBadge component (src/components/leads/PriorityBadge.tsx)
@@ -43,3 +45,7 @@ export const PRIORITY_CONFIG = {
 export const DATE_FORMAT = 'dd MMM yyyy'
 export const DATETIME_FORMAT = 'dd MMM yyyy, HH:mm'
 export const TIME_FORMAT = 'HH:mm'
+
+// Shared Tailwind classes for compact form inputs (lead detail edit mode, reminder form, lead forms)
+export const FORM_INPUT_CLASSES =
+  "w-full px-3 py-1.5 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"

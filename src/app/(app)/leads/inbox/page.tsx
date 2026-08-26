@@ -1,24 +1,29 @@
-'use client'
-
 /**
+ * src/app/(app)/leads/inbox/page.tsx
+ *
  * Inbox Page — Leaduri nealocate cu paginație
- * 
+ *
+ * Owner de state (leaduri nealocate, selecție, alocare) — markup-ul rândului
+ * și al toolbar-ului e delegat componentelor din
+ * src/components/leads/inbox/*.
+ *
  * Vizibil: Admin, Manager
  * Features: alocare individuală/bulk, paginație, toast
  */
+
+'use client'
 
 import { useEffect, useState, useMemo } from 'react'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { useToast } from '@/components/ui/Toast'
 import { createClient } from '@/lib/supabase/client'
 import { Header } from '@/components/layout/Header'
-import { SourceIcon } from '@/components/leads/SourceIcon'
-import { PriorityBadge } from '@/components/leads/PriorityBadge'
 import { Pagination } from '@/components/ui/Pagination'
 import type { Lead, Profile } from '@/lib/types/database'
-import { fullName, timeAgo, formatTravelDates, formatTravelers } from '@/lib/utils'
-import { UserPlus, Check, ChevronDown, MapPin, Calendar, Users } from 'lucide-react'
-import Link from 'next/link'
+import { fullName } from '@/lib/utils'
+import { Check } from 'lucide-react'
+import { InboxToolbar } from '@/components/leads/inbox/InboxToolbar'
+import { InboxLeadRow } from '@/components/leads/inbox/InboxLeadRow'
 
 export default function InboxPage() {
   const { profile, isAdminOrManager } = useAuth()
@@ -112,38 +117,21 @@ export default function InboxPage() {
   }
 
   if (!isAdminOrManager) {
-    return <><Header title="Inbox" /><div className="p-6 text-sm text-slate-500 dark:text-slate-400">Nu ai acces la această pagină.</div></>
+    return <><Header title="Inbox" /><div className="p-4 sm:p-6 text-sm text-slate-500 dark:text-slate-400">Nu ai acces la această pagină.</div></>
   }
 
   return (
     <>
       <Header title="Inbox" />
-      <div className="p-6">
-        {/* Toolbar */}
-        <div className="flex items-center justify-between mb-4">
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            {leads.length} {leads.length === 1 ? 'lead nealocat' : 'leaduri nealocate'}
-          </p>
-          {selected.size > 0 && (
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-slate-600 dark:text-slate-400">{selected.size} selectat{selected.size > 1 ? 'e' : ''}</span>
-              <div className="relative">
-                <button onClick={() => setShowAgentDropdown(showAgentDropdown === 'bulk' ? null : 'bulk')}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                  <UserPlus size={14} /> Alocă la... <ChevronDown size={14} />
-                </button>
-                {showAgentDropdown === 'bulk' && (
-                  <div className="absolute right-0 top-full mt-1 w-56 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg z-10 py-1">
-                    {agents.map((agent) => (
-                      <button key={agent.id} onClick={() => bulkAssign(agent.id)}
-                        className="w-full text-left px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700">{agent.full_name}</button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
+      <div className="p-4 sm:p-6">
+        <InboxToolbar
+          totalCount={leads.length}
+          selectedCount={selected.size}
+          agents={agents}
+          bulkDropdownOpen={showAgentDropdown === 'bulk'}
+          onToggleBulkDropdown={() => setShowAgentDropdown(showAgentDropdown === 'bulk' ? null : 'bulk')}
+          onBulkAssign={bulkAssign}
+        />
 
         {loading ? (
           <div className="space-y-3">
@@ -172,44 +160,17 @@ export default function InboxPage() {
               </div>
 
               {paginatedLeads.map((lead) => (
-                <div key={lead.id}
-                  className={`bg-white dark:bg-slate-900 border rounded-xl p-4 flex items-center gap-4 transition-colors ${
-                    selected.has(lead.id) ? 'border-blue-300 dark:border-blue-700 bg-blue-50/30 dark:bg-blue-950/30'
-                      : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
-                  }`}>
-                  <input type="checkbox" checked={selected.has(lead.id)} onChange={() => toggleSelect(lead.id)}
-                    className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500" />
-                  <SourceIcon source={lead.source} size="md" />
-                  <Link href={`/leads/${lead.id}`} className="flex-1 min-w-0 group">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm font-medium text-slate-900 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                        {fullName(lead.first_name, lead.last_name)}
-                      </span>
-                      <PriorityBadge priority={lead.priority} size="sm" />
-                    </div>
-                    <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
-                      {lead.destination && <span className="flex items-center gap-1"><MapPin size={11} /> {lead.destination}</span>}
-                      {lead.travel_date_from && <span className="flex items-center gap-1"><Calendar size={11} /> {formatTravelDates(lead.travel_date_from, lead.travel_date_to)}</span>}
-                      <span className="flex items-center gap-1"><Users size={11} /> {formatTravelers(lead.nr_adults, lead.nr_children)}</span>
-                    </div>
-                  </Link>
-                  <span className="text-xs text-slate-400 whitespace-nowrap">{timeAgo(lead.created_at)}</span>
-                  <div className="relative">
-                    <button onClick={() => setShowAgentDropdown(showAgentDropdown === lead.id ? null : lead.id)}
-                      disabled={assigningTo === lead.id}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-50">
-                      <UserPlus size={13} /> Alocă
-                    </button>
-                    {showAgentDropdown === lead.id && (
-                      <div className="absolute right-0 top-full mt-1 w-56 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg z-10 py-1">
-                        {agents.map((agent) => (
-                          <button key={agent.id} onClick={() => assignLead(lead.id, agent.id)}
-                            className="w-full text-left px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700">{agent.full_name}</button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
+                <InboxLeadRow
+                  key={lead.id}
+                  lead={lead}
+                  agents={agents}
+                  selected={selected.has(lead.id)}
+                  onToggleSelect={() => toggleSelect(lead.id)}
+                  assigning={assigningTo === lead.id}
+                  dropdownOpen={showAgentDropdown === lead.id}
+                  onToggleDropdown={() => setShowAgentDropdown(showAgentDropdown === lead.id ? null : lead.id)}
+                  onAssign={(agentId) => assignLead(lead.id, agentId)}
+                />
               ))}
             </div>
 

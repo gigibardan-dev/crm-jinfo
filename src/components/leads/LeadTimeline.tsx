@@ -1,8 +1,10 @@
 'use client'
 
 /**
+ * src/components/leads/LeadTimeline.tsx
+ *
  * LeadTimeline Component
- * 
+ *
  * Displays chronological activity for a lead:
  * - Status changes, comments, assignments, reminders, edits, system events
  * 

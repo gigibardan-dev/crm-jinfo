@@ -1,6 +1,14 @@
 -- ============================================
+-- supabase/migrations/001_initial_schema.sql
+--
 -- JinfoTours CRM — Complete Database Schema
 -- Run this in Supabase SQL Editor
+--
+-- Creează schema completă inițială: helper functions (get_user_role,
+-- is_admin), tabelele profiles/leads/lead_activities/reminders/
+-- notifications/pipeline_stages/lead_sources/lead_attachments, RLS
+-- policies pe rol (admin/manager/agent) și seed data (pipeline stages +
+-- lead sources implicite).
 -- ============================================
 
 -- ============================================
