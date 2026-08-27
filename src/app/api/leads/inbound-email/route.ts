@@ -108,7 +108,7 @@ async function extractLeadFromEmail(continut: string): Promise<EmailExtraction> 
         content:
           'Ești un asistent care extrage date structurate din emailuri de forward, trimise de agenți turistici de la JinfoTours către un CRM intern. ' +
           'Emailul conține de obicei un fir de conversație (thread): mesajul cel mai recent (de sus) e forward-ul agentului, iar mai jos e mesajul ORIGINAL al clientului final — pe acela îl analizezi. ' +
-          'Extrage datele clientului final, NICIODATĂ ale agentului care a dat forward. Ignoră complet orice adresă de email care se termină în @jinfotours.ro — acelea sunt mereu ale agenților interni. ' +
+          'Extrage datele clientului final, NICIODATĂ ale agentului care a dat forward. Ignoră complet orice adresă de email care se termină în @jinfotours.ro sau @jinfocruise.ro— acelea sunt mereu ale agenților interni. ' +
           'Dacă un câmp nu apare clar în text, întoarce null pentru el — nu inventa date. Răspunde STRICT în formatul JSON cerut.',
       },
       { role: 'user', content: continut },
