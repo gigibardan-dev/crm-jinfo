@@ -18,6 +18,7 @@
  */
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/lib/hooks/useAuth'
@@ -147,8 +148,8 @@ export function Sidebar() {
         )}
       >
         <div className="h-14 flex items-center gap-3 px-5 border-b border-slate-100 dark:border-slate-800">
-          <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center text-xs font-bold">
-            JT
+          <div className="w-9 h-9 rounded-lg bg-white dark:bg-slate-100 ring-1 ring-slate-200 dark:ring-slate-700 shadow-sm flex items-center justify-center overflow-hidden shrink-0">
+            <Image src="/images/jinfologo-mic.png" alt="J'Info Tours" width={189} height={199} className="w-full h-full object-contain p-0.5" priority />
           </div>
           <div className="flex-1">
             <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">JinfoTours</span>
