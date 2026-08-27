@@ -5,7 +5,9 @@
  *
  * Cardul de meta-informații din coloana dreaptă a paginii de detaliu lead:
  * sursă, agent alocat (cu dropdown de realocare pentru admin/manager),
- * dată creare/alocare/prim-răspuns, valoare câștigată sau motiv de pierdere.
+ * dată creare/alocare/prim-răspuns, detaliile booking-ului câștigat (sumă
+ * EUR/RON, comision EUR/RON, nr. comandă/contract/factură — toate
+ * opționale, completate din WonValueModal) sau motiv de pierdere.
  * Extras din src/app/(app)/leads/[id]/page.tsx — comportament identic.
  *
  * Buton „Vezi email original” — doar pentru lead-uri din sursa „email”
@@ -42,6 +44,17 @@ export function LeadMetaSidebar({ lead, agent, agents, isAdminOrManager, showAss
     ? (lead.source_raw_data as { continut?: string; subiect?: string; expeditor?: string } | null)
     : null
   const hasOriginalEmail = !!rawEmail?.continut
+
+  // Detaliile booking-ului („won") — toate opționale, deci construim
+  // dinamic doar rândurile care chiar au o valoare completată.
+  const wonRows: { label: string; value: string }[] = []
+  const sumParts = [lead.won_value ? `${lead.won_value} EUR` : null, lead.total_amount_ron ? `${lead.total_amount_ron} RON` : null].filter(Boolean)
+  if (sumParts.length) wonRows.push({ label: 'Sumă încasată', value: sumParts.join(' / ') })
+  const commParts = [lead.commission_eur ? `${lead.commission_eur} EUR` : null, lead.commission_ron ? `${lead.commission_ron} RON` : null].filter(Boolean)
+  if (commParts.length) wonRows.push({ label: 'Comision', value: commParts.join(' / ') })
+  if (lead.order_number) wonRows.push({ label: 'Nr. comandă', value: lead.order_number })
+  if (lead.contract_number) wonRows.push({ label: 'Nr. contract', value: lead.contract_number })
+  if (lead.invoice_number) wonRows.push({ label: 'Nr. factură', value: lead.invoice_number })
 
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-4 space-y-3 text-sm">
@@ -95,10 +108,14 @@ export function LeadMetaSidebar({ lead, agent, agents, isAdminOrManager, showAss
           <span className="text-slate-700 dark:text-slate-300 text-xs">{formatDateTime(lead.first_response_at)}</span>
         </div>
       )}
-      {lead.won_value && (
-        <div className="flex justify-between">
-          <span className="text-slate-500 dark:text-slate-400">Valoare</span>
-          <span className="text-green-600 font-medium text-xs">{lead.won_value} EUR</span>
+      {wonRows.length > 0 && (
+        <div className="pt-1 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
+          {wonRows.map((row) => (
+            <div key={row.label} className="flex justify-between gap-3">
+              <span className="text-slate-500 dark:text-slate-400">{row.label}</span>
+              <span className="text-green-600 dark:text-green-400 font-medium text-xs text-right">{row.value}</span>
+            </div>
+          ))}
         </div>
       )}
       {lead.lost_reason && (

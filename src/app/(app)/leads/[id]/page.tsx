@@ -38,6 +38,7 @@ import { CommentForm } from '@/components/leads/lead-detail/CommentForm'
 import { LeadMetaSidebar } from '@/components/leads/lead-detail/LeadMetaSidebar'
 import { ReminderPanel } from '@/components/leads/lead-detail/ReminderPanel'
 import { LostReasonModal, WonValueModal, DeleteLeadModal } from '@/components/leads/lead-detail/LeadActionModals'
+import { type WonDetails, EMPTY_WON_DETAILS, buildWonUpdate, formatWonNote } from '@/lib/types/wonDetails'
 import { ArrowLeft, Trash2 } from 'lucide-react'
 
 export default function LeadDetailPage() {
@@ -66,7 +67,7 @@ export default function LeadDetailPage() {
   const [lostReason, setLostReason] = useState('')
   const [lostReasonCustom, setLostReasonCustom] = useState('')
   const [showWonModal, setShowWonModal] = useState(false)
-  const [wonValue, setWonValue] = useState('')
+  const [wonDetails, setWonDetails] = useState<WonDetails>(EMPTY_WON_DETAILS)
 
   // --- Reminder ---
   const [showReminderForm, setShowReminderForm] = useState(false)
@@ -211,12 +212,13 @@ export default function LeadDetailPage() {
     await applyStatusChange(newStatus)
   }
 
-  /** Apply status change to DB + log activity */
-  async function applyStatusChange(newStatus: string, reason?: string, value?: number | null) {
+  /** Apply status change to DB + log activity. `extra` duce câmpurile suplimentare
+   *  (ex: detaliile de booking la „won", vezi buildWonUpdate) direct în update;
+   *  `note` suprascrie textul implicit din lead_activities când e definit. */
+  async function applyStatusChange(newStatus: string, reason?: string, extra?: Database['public']['Tables']['leads']['Update'], note?: string) {
     if (!lead) return
-    const updates: Database['public']['Tables']['leads']['Update'] = { status: newStatus }
+    const updates: Database['public']['Tables']['leads']['Update'] = { status: newStatus, ...extra }
     if (reason) updates.lost_reason = reason
-    if (value !== undefined) updates.won_value = value
     if (newStatus !== 'new' && !lead.first_response_at) {
       updates.first_response_at = new Date().toISOString()
     }
@@ -233,7 +235,7 @@ export default function LeadDetailPage() {
     await supabase.from('leads').update(updates).eq('id', lead.id)
     await supabase.from('lead_activities').insert({
       lead_id: lead.id, user_id: profile!.id, type: 'status_change',
-      content: reason ? `Motiv: ${reason}` : value ? `Valoare: ${value} EUR` : null,
+      content: note ?? (reason ? `Motiv: ${reason}` : null),
       metadata: { from_status: lead.status, to_status: newStatus },
     })
 
@@ -244,7 +246,7 @@ export default function LeadDetailPage() {
     setShowWonModal(false)
     setLostReason('')
     setLostReasonCustom('')
-    setWonValue('')
+    setWonDetails(EMPTY_WON_DETAILS)
     fetchLead()
   }
 
@@ -485,10 +487,10 @@ export default function LeadDetailPage() {
       {/* ===== WON VALUE MODAL ===== */}
       {showWonModal && (
         <WonValueModal
-          wonValue={wonValue}
-          onWonValueChange={setWonValue}
-          onCancel={() => { setShowWonModal(false); setWonValue('') }}
-          onConfirm={() => applyStatusChange('won', undefined, wonValue ? Number(wonValue) : null)}
+          details={wonDetails}
+          onChange={(field, value) => setWonDetails((prev) => ({ ...prev, [field]: value }))}
+          onCancel={() => { setShowWonModal(false); setWonDetails(EMPTY_WON_DETAILS) }}
+          onConfirm={() => applyStatusChange('won', undefined, buildWonUpdate(wonDetails), formatWonNote(wonDetails))}
         />
       )}
 

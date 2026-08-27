@@ -90,6 +90,12 @@ export type Database = {
           next_followup_at: string | null
           lost_reason: string | null
           won_value: number | null
+          total_amount_ron: number | null
+          commission_eur: number | null
+          commission_ron: number | null
+          order_number: string | null
+          contract_number: string | null
+          invoice_number: string | null
           created_at: string
           updated_at: string
         }
@@ -122,6 +128,12 @@ export type Database = {
           next_followup_at?: string | null
           lost_reason?: string | null
           won_value?: number | null
+          total_amount_ron?: number | null
+          commission_eur?: number | null
+          commission_ron?: number | null
+          order_number?: string | null
+          contract_number?: string | null
+          invoice_number?: string | null
         }
         Update: {
           first_name?: string | null
@@ -149,6 +161,12 @@ export type Database = {
           next_followup_at?: string | null
           lost_reason?: string | null
           won_value?: number | null
+          total_amount_ron?: number | null
+          commission_eur?: number | null
+          commission_ron?: number | null
+          order_number?: string | null
+          contract_number?: string | null
+          invoice_number?: string | null
         }
         Relationships: [
           {

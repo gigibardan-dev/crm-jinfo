@@ -14,6 +14,7 @@
 
 import { Trophy, Trash2, Mail, X } from 'lucide-react'
 import { LOST_REASONS, FORM_INPUT_CLASSES } from '@/lib/utils/constants'
+import type { WonDetails } from '@/lib/types/wonDetails'
 
 // ============================================================
 // LostReasonModal
@@ -62,28 +63,72 @@ export function LostReasonModal({ lostReason, onLostReasonChange, lostReasonCust
 // ============================================================
 // WonValueModal
 // ============================================================
+// Toate câmpurile sunt opționale — un agent poate marca rapid un lead ca
+// „won" fără să completeze nimic, sau poate adăuga detaliile complete ale
+// booking-ului (sumă/comision pe ambele valute + cele 3 numere de
+// referință) dacă le are deja la îndemână. Folosit atât din pagina de
+// detaliu lead cât și din Pipeline (același modal, vezi leads/page.tsx).
+
+const WON_INPUT_CLASSES =
+  'w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500'
 
 interface WonValueModalProps {
-  wonValue: string
-  onWonValueChange: (value: string) => void
+  details: WonDetails
+  onChange: (field: keyof WonDetails, value: string) => void
   onCancel: () => void
   onConfirm: () => void
 }
 
-export function WonValueModal({ wonValue, onWonValueChange, onCancel, onConfirm }: WonValueModalProps) {
+export function WonValueModal({ details, onChange, onCancel, onConfirm }: WonValueModalProps) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-xl w-full max-w-sm p-6 mx-4 border border-slate-200 dark:border-slate-700">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto p-6 mx-4 border border-slate-200 dark:border-slate-700">
         <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-400 flex items-center justify-center mx-auto mb-4">
           <Trophy size={24} />
         </div>
         <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 text-center mb-1">Lead câștigat</h3>
-        <p className="text-sm text-slate-500 dark:text-slate-400 text-center mb-5">Introdu valoarea booking-ului (opțional).</p>
-        <div className="mb-5">
-          <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Valoare (EUR)</label>
-          <input type="number" min={0} step={0.01} value={wonValue} onChange={(e) => onWonValueChange(e.target.value)}
-            placeholder="ex: 2500" autoFocus className={FORM_INPUT_CLASSES} />
+        <p className="text-sm text-slate-500 dark:text-slate-400 text-center mb-5">Detaliile booking-ului — toate câmpurile sunt opționale.</p>
+
+        <div className="space-y-4 mb-5">
+          <div>
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Sumă totală încasată</label>
+            <div className="grid grid-cols-2 gap-2">
+              <input type="number" min={0} step={0.01} value={details.value} onChange={(e) => onChange('value', e.target.value)}
+                placeholder="EUR" autoFocus className={WON_INPUT_CLASSES} />
+              <input type="number" min={0} step={0.01} value={details.totalAmountRon} onChange={(e) => onChange('totalAmountRon', e.target.value)}
+                placeholder="RON" className={WON_INPUT_CLASSES} />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Comision</label>
+            <div className="grid grid-cols-2 gap-2">
+              <input type="number" min={0} step={0.01} value={details.commissionEur} onChange={(e) => onChange('commissionEur', e.target.value)}
+                placeholder="EUR" className={WON_INPUT_CLASSES} />
+              <input type="number" min={0} step={0.01} value={details.commissionRon} onChange={(e) => onChange('commissionRon', e.target.value)}
+                placeholder="RON" className={WON_INPUT_CLASSES} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div>
+              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Nr. comandă (sistem)</label>
+              <input type="text" value={details.orderNumber} onChange={(e) => onChange('orderNumber', e.target.value)}
+                placeholder="ex: CMD-2201" className={WON_INPUT_CLASSES} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Nr. contract</label>
+              <input type="text" value={details.contractNumber} onChange={(e) => onChange('contractNumber', e.target.value)}
+                placeholder="ex: C-114" className={WON_INPUT_CLASSES} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Nr. factură</label>
+              <input type="text" value={details.invoiceNumber} onChange={(e) => onChange('invoiceNumber', e.target.value)}
+                placeholder="ex: F-889" className={WON_INPUT_CLASSES} />
+            </div>
+          </div>
         </div>
+
         <div className="flex items-center gap-3">
           <button onClick={onCancel}
             className="flex-1 px-4 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">

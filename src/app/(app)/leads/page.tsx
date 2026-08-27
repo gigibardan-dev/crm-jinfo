@@ -31,7 +31,8 @@ import { PipelineToolbar, type PipelineViewMode } from '@/components/leads/pipel
 import { PipelineFilterBar } from '@/components/leads/pipeline/PipelineFilterBar'
 import { KanbanBoard } from '@/components/leads/pipeline/KanbanBoard'
 import { LeadsListView } from '@/components/leads/pipeline/LeadsListView'
-import { PipelineWonModal } from '@/components/leads/pipeline/PipelineWonModal'
+import { WonValueModal } from '@/components/leads/lead-detail/LeadActionModals'
+import { type WonDetails, EMPTY_WON_DETAILS, buildWonUpdate, formatWonNote } from '@/lib/types/wonDetails'
 
 const IN_PROGRESS_SET: string[] = [...IN_PROGRESS_STATUSES]
 
@@ -92,7 +93,7 @@ function PipelinePageContent() {
   // --- Won modal ---
   const [showWonModal, setShowWonModal] = useState(false)
   const [wonLeadId, setWonLeadId] = useState<string | null>(null)
-  const [wonValue, setWonValue] = useState('')
+  const [wonDetails, setWonDetails] = useState<WonDetails>(EMPTY_WON_DETAILS)
 
   // --- Data fetching ---
   const fetchData = useCallback(async () => {
@@ -177,17 +178,18 @@ function PipelinePageContent() {
     const lead = leads.find(l => l.id === wonLeadId)
     if (!lead) return
     const updates: Database['public']['Tables']['leads']['Update'] = {
-      status: 'won', won_value: wonValue ? Number(wonValue) : null,
+      status: 'won', ...buildWonUpdate(wonDetails),
     }
     if (!lead.first_response_at) updates.first_response_at = new Date().toISOString()
     await supabase.from('leads').update(updates).eq('id', wonLeadId)
+    const note = formatWonNote(wonDetails)
     await supabase.from('lead_activities').insert({
       lead_id: wonLeadId, user_id: profile!.id, type: 'status_change',
-      content: wonValue ? `Valoare: ${wonValue} EUR` : null,
+      content: note ?? null,
       metadata: { from_status: lead.status, to_status: 'won' },
     })
-    toast({ title: 'Lead marcat ca câștigat', variant: 'success', description: wonValue ? `Valoare: ${wonValue} EUR` : undefined })
-    setShowWonModal(false); setWonLeadId(null); setWonValue('')
+    toast({ title: 'Lead marcat ca câștigat', variant: 'success', description: note })
+    setShowWonModal(false); setWonLeadId(null); setWonDetails(EMPTY_WON_DETAILS)
     fetchData()
   }
 
@@ -250,10 +252,10 @@ function PipelinePageContent() {
       </div>
 
       {showWonModal && (
-        <PipelineWonModal
-          wonValue={wonValue}
-          onWonValueChange={setWonValue}
-          onCancel={() => { setShowWonModal(false); setWonLeadId(null); setWonValue('') }}
+        <WonValueModal
+          details={wonDetails}
+          onChange={(field, value) => setWonDetails((prev) => ({ ...prev, [field]: value }))}
+          onCancel={() => { setShowWonModal(false); setWonLeadId(null); setWonDetails(EMPTY_WON_DETAILS) }}
           onConfirm={handleWon}
         />
       )}
