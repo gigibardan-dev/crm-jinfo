@@ -7,12 +7,19 @@
  * sursă, agent alocat (cu dropdown de realocare pentru admin/manager),
  * dată creare/alocare/prim-răspuns, valoare câștigată sau motiv de pierdere.
  * Extras din src/app/(app)/leads/[id]/page.tsx — comportament identic.
+ *
+ * Buton „Vezi email original” — doar pentru lead-uri din sursa „email”
+ * (forward de agent, vezi /api/leads/inbound-email) care chiar au text
+ * salvat în `source_raw_data.continut`. State-ul modalului e local aici
+ * (read-only, nu are nevoie de nimic din pagina părinte).
  */
 
 'use client'
 
-import { UserPlus } from 'lucide-react'
+import { useState } from 'react'
+import { UserPlus, Mail } from 'lucide-react'
 import { SourceIcon } from '@/components/leads/SourceIcon'
+import { OriginalEmailModal } from '@/components/leads/lead-detail/LeadActionModals'
 import type { Lead, Profile } from '@/lib/types/database'
 import { formatDateTime } from '@/lib/utils'
 
@@ -27,12 +34,27 @@ interface LeadMetaSidebarProps {
 }
 
 export function LeadMetaSidebar({ lead, agent, agents, isAdminOrManager, showAssignDropdown, onToggleAssignDropdown, onReassign }: LeadMetaSidebarProps) {
+  const [showEmailModal, setShowEmailModal] = useState(false)
+
+  // Textul brut există doar pe lead-urile canalului „email” (forward de
+  // agent) — celelalte surse nu au acest câmp în source_raw_data.
+  const rawEmail = lead.source === 'email'
+    ? (lead.source_raw_data as { continut?: string; subiect?: string; expeditor?: string } | null)
+    : null
+  const hasOriginalEmail = !!rawEmail?.continut
+
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-4 space-y-3 text-sm">
       <div className="flex justify-between items-center">
         <span className="text-slate-500 dark:text-slate-400">Sursă</span>
         <SourceIcon source={lead.source} size="md" showLabel label={lead.source_detail || lead.source} />
       </div>
+      {hasOriginalEmail && (
+        <button onClick={() => setShowEmailModal(true)}
+          className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900 transition-colors">
+          <Mail size={12} /> Vezi email original
+        </button>
+      )}
       <div className="flex justify-between items-center">
         <span className="text-slate-500 dark:text-slate-400">Agent</span>
         <div className="flex items-center gap-1.5">
@@ -84,6 +106,15 @@ export function LeadMetaSidebar({ lead, agent, agents, isAdminOrManager, showAss
           <span className="text-slate-500 dark:text-slate-400">Motiv pierdere</span>
           <span className="text-red-600 dark:text-red-400 text-xs">{lead.lost_reason}</span>
         </div>
+      )}
+
+      {showEmailModal && hasOriginalEmail && (
+        <OriginalEmailModal
+          subiect={rawEmail?.subiect || null}
+          expeditor={rawEmail?.expeditor || null}
+          continut={rawEmail!.continut!}
+          onClose={() => setShowEmailModal(false)}
+        />
       )}
     </div>
   )

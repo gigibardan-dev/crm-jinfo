@@ -32,10 +32,15 @@
  *    + activitate de sistem + notificare admin/manager, la fel ca la
  *    celelalte canale.
  *
- * Zero leaduri pierdute: dacă Groq eșuează (rate limit, model indisponibil,
- * JSON invalid etc.), NU aruncăm cererea — inserăm lead-ul oricum, cu textul
- * brut în `message`, prioritate `high` și tag `revizuire-ai`, ca un agent să-l
- * revizuiască manual. Mai bine un lead „urât” în inbox decât unul pierdut.
+ * Zero leaduri pierdute — dar și zero leaduri „goale" trecute drept normale:
+ * NU inserăm niciodată tăcut, cu prioritate medie și mesaj gol, în DOUĂ
+ * situații (`needsReview`, vezi cod): (a) Groq eșuează (rate limit, model
+ * indisponibil, JSON invalid) SAU (b) Groq răspunde tehnic valid dar n-a găsit
+ * nimic util — `isMostlyEmpty`, ex. email spam/fără sens, toate câmpurile
+ * null. În ambele cazuri inserăm lead-ul oricum (nu aruncăm cererea), dar cu
+ * textul brut în `message`, prioritate `high` și tag `revizuire-ai`, ca un
+ * agent să-l revizuiască manual — mai bine un lead „urât" în inbox decât unul
+ * pierdut sau unul care se pierde tăcut printre cele normale.
  *
  * Variabile de mediu necesare: GROQ_API_KEY, INBOUND_EMAIL_SECRET.
  * Vezi și: claude/integrari-canale-status.md (secțiunea 5, canalul email).
@@ -54,6 +59,18 @@ type NotificationInsert = Database['public']['Tables']['notifications']['Insert'
 // Alternativă validă, dacă vreți alt „stil” de extragere: qwen/qwen3.8-27b
 // (suportă și el strict:true, dar e mai lent/scump — vezi console.groq.com/docs/models).
 const GROQ_MODEL = 'openai/gpt-oss-20b'
+
+// Domenii interne (agenți JinfoTours) — orice adresă de pe aceste domenii e
+// IGNORATĂ ca posibil "email client", peste tot unde extragem/validăm un
+// email de client (prompt AI, schema, fallback regex). @jinfotours.ro =
+// agenții „clasici"; @jinfocruise.ro = agenții de pe platforma de croaziere
+// (adăugat de Gigi — mesajele de acolo pot fi forward-uite la fel).
+const INTERNAL_EMAIL_DOMAINS = ['@jinfotours.ro', '@jinfocruise.ro']
+
+function isInternalEmail(email: string): boolean {
+  const lower = email.toLowerCase()
+  return INTERNAL_EMAIL_DOMAINS.some((domain) => lower.endsWith(domain))
+}
 
 interface EmailExtraction {
   nume_client: string | null
@@ -77,7 +94,7 @@ const EXTRACTION_SCHEMA = {
     },
     email_client: {
       type: ['string', 'null'],
-      description: 'Adresa de email a clientului final. IGNORĂ complet orice adresă @jinfotours.ro — acelea aparțin agenților interni, niciodată clienților.',
+      description: `Adresa de email a clientului final. IGNORĂ complet orice adresă ${INTERNAL_EMAIL_DOMAINS.join(' sau ')} — acelea aparțin agenților interni, niciodată clienților.`,
     },
     telefon_client: {
       type: ['string', 'null'],
@@ -108,7 +125,7 @@ async function extractLeadFromEmail(continut: string): Promise<EmailExtraction> 
         content:
           'Ești un asistent care extrage date structurate din emailuri de forward, trimise de agenți turistici de la JinfoTours către un CRM intern. ' +
           'Emailul conține de obicei un fir de conversație (thread): mesajul cel mai recent (de sus) e forward-ul agentului, iar mai jos e mesajul ORIGINAL al clientului final — pe acela îl analizezi. ' +
-          'Extrage datele clientului final, NICIODATĂ ale agentului care a dat forward. Ignoră complet orice adresă de email care se termină în @jinfotours.ro sau @jinfocruise.ro— acelea sunt mereu ale agenților interni. ' +
+          `Extrage datele clientului final, NICIODATĂ ale agentului care a dat forward. Ignoră complet orice adresă de email care se termină în ${INTERNAL_EMAIL_DOMAINS.join(' sau ')} — acelea sunt mereu ale agenților interni. ` +
           'Dacă un câmp nu apare clar în text, întoarce null pentru el — nu inventa date. Răspunde STRICT în formatul JSON cerut.',
       },
       { role: 'user', content: continut },
@@ -133,7 +150,7 @@ async function extractLeadFromEmail(continut: string): Promise<EmailExtraction> 
 // un email de contact evident din text.
 function fallbackEmailFromText(text: string): string | null {
   const matches = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) || []
-  return matches.find((m) => !m.toLowerCase().endsWith('@jinfotours.ro')) || null
+  return matches.find((m) => !isInternalEmail(m)) || null
 }
 
 export async function POST(request: NextRequest) {
@@ -187,6 +204,14 @@ export async function POST(request: NextRequest) {
   const emailClient = extraction?.email_client || fallbackEmailFromText(continut)
   const phoneClient = extraction?.telefon_client || null
 
+  // Groq poate răspunde tehnic „cu succes" dar fără să fi găsit nimic util
+  // (email fără sens, spam, thread nereușit de parcurs) — un JSON valid cu
+  // toate câmpurile null nu înseamnă că avem un lead utilizabil. Tratăm asta
+  // la fel ca o eșec de extragere: lead flagged pentru revizuire manuală,
+  // NU inserat tăcut cu prioritate medie și mesaj gol.
+  const isMostlyEmpty = !!extraction && !extraction.nume_client && !emailClient && !phoneClient && !extraction.destinatie
+  const needsReview = !extraction || isMostlyEmpty
+
   // --- 4. Deduplicare — email/telefon, fereastră 7 zile (motorul standard,
   // identic cu /api/leads/inbound; NU dedup-ul pe id stabil de la Facebook,
   // care nu are corespondent aici — un forward de email n-are un id extern). ---
@@ -218,11 +243,36 @@ export async function POST(request: NextRequest) {
   }
 
   // --- 5. Insert lead ---
+  // needsReview acoperă DOUĂ situații distincte, cu același tratament (prioritate
+  // high, tag revizuire-ai, text brut în message): Groq a eșuat (extraction === null)
+  // SAU Groq a răspuns valid dar n-a găsit nimic util (isMostlyEmpty) — un email
+  // fără sens/spam nu trebuie să iasă ca un lead „normal", cu mesaj gol.
   const sourceDetail = `Forward agent — ${expeditor || 'necunoscut'}`
-  const leadData: LeadInsert = extraction
+  const leadData: LeadInsert = needsReview
     ? {
-        first_name: extraction.nume_client?.split(' ')[0] || null,
-        last_name: extraction.nume_client?.split(' ').slice(1).join(' ') || null,
+        first_name: extraction?.nume_client?.split(' ')[0] || null,
+        last_name: extraction?.nume_client?.split(' ').slice(1).join(' ') || null,
+        email: emailClient,
+        phone: phoneClient,
+        source: 'email',
+        source_detail: sourceDetail,
+        source_raw_data: {
+          expeditor, subiect, continut,
+          ai_model: extraction ? GROQ_MODEL : null,
+          ai_extraction: extraction,
+          ai_error: extractionError,
+          extracted_at: new Date().toISOString(),
+        } as unknown as Json,
+        destination: extraction?.destinatie || null,
+        message: `[Date lipsă - necesită citire manuală]\n\n${continut}`,
+        nr_adults: 1,
+        priority: 'high',
+        tags: ['revizuire-ai'],
+        status: 'new',
+      }
+    : {
+        first_name: extraction!.nume_client?.split(' ')[0] || null,
+        last_name: extraction!.nume_client?.split(' ').slice(1).join(' ') || null,
         email: emailClient,
         phone: phoneClient,
         source: 'email',
@@ -232,30 +282,10 @@ export async function POST(request: NextRequest) {
           ai_model: GROQ_MODEL, ai_extraction: extraction,
           extracted_at: new Date().toISOString(),
         } as unknown as Json,
-        destination: extraction.destinatie || null,
-        message: extraction.rezumat,
+        destination: extraction!.destinatie || null,
+        message: extraction!.rezumat,
         nr_adults: 1,
         priority: 'medium',
-        status: 'new',
-      }
-    : {
-        // Groq a eșuat — inserăm oricum, flagged pentru revizuire manuală.
-        first_name: null,
-        last_name: null,
-        email: emailClient,
-        phone: null,
-        source: 'email',
-        source_detail: sourceDetail,
-        source_raw_data: {
-          expeditor, subiect, continut,
-          ai_error: extractionError,
-          extracted_at: new Date().toISOString(),
-        },
-        destination: null,
-        message: `[Extragere AI indisponibilă — necesită citire manuală]\nSubiect: ${subiect || '—'}\n\n${continut.slice(0, 4000)}`,
-        nr_adults: 1,
-        priority: 'high',
-        tags: ['revizuire-ai'],
         status: 'new',
       }
 
@@ -268,9 +298,11 @@ export async function POST(request: NextRequest) {
   await supabase.from('lead_activities').insert({
     lead_id: lead.id,
     type: 'system' as const,
-    content: extraction
+    content: !needsReview
       ? `Lead creat automat din forward email (agent: ${expeditor || 'necunoscut'}) — extras cu AI (Groq, ${GROQ_MODEL}).`
-      : `Lead creat din forward email (agent: ${expeditor || 'necunoscut'}) — extragerea AI a eșuat (${extractionError}), necesită revizuire manuală.`,
+      : !extraction
+        ? `Lead creat din forward email (agent: ${expeditor || 'necunoscut'}) — extragerea AI a eșuat (${extractionError}), necesită revizuire manuală.`
+        : `Lead creat din forward email (agent: ${expeditor || 'necunoscut'}) — AI n-a găsit date esențiale în text (nume/email/telefon/destinație), necesită revizuire manuală.`,
   })
 
   const { data: managers } = await supabase
@@ -291,7 +323,7 @@ export async function POST(request: NextRequest) {
   }
 
   return NextResponse.json(
-    { status: extraction ? 'created' : 'created_needs_review', lead_id: lead.id },
+    { status: needsReview ? 'created_needs_review' : 'created', lead_id: lead.id },
     { status: 201 }
   )
 }
