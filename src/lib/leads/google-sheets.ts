@@ -24,7 +24,7 @@
 
 import { JWT } from 'google-auth-library'
 
-export class GoogleSheetsConfigError extends Error {}
+export class GoogleSheetsConfigError extends Error { }
 
 const SHEETS_API_BASE = 'https://sheets.googleapis.com/v4/spreadsheets'
 
@@ -87,10 +87,14 @@ export async function getAllSheetsValues(
 
   const client = getAuthClient()
   try {
+    // REZOLVARE: Generăm manual string-ul pentru Google API, astfel încât parametrii 
+    // să fie repetați (ranges=Sheet1&ranges=Namibia), nu comasați (ranges=Sheet1,Namibia).
+    const rangesQuery = sheetTitles.map((t) => `ranges=${encodeURIComponent(t)}`).join('&')
+
     const res = await client.request<ValuesBatchGetResponse>({
-      url: `${SHEETS_API_BASE}/${encodeURIComponent(spreadsheetId)}/values:batchGet`,
+      url: `${SHEETS_API_BASE}/${encodeURIComponent(spreadsheetId)}/values:batchGet?${rangesQuery}`,
       params: {
-        ranges: sheetTitles,
+        // Am eliminat `ranges` de aici pentru că acum este integrat direct în URL-ul de mai sus
         majorDimension: 'ROWS',
         valueRenderOption: 'FORMATTED_VALUE',
       },
