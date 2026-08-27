@@ -220,6 +220,15 @@ export default function LeadDetailPage() {
     if (newStatus !== 'new' && !lead.first_response_at) {
       updates.first_response_at = new Date().toISOString()
     }
+    // Revenire la „Nou/Nealocat” — scoatem agentul alocat din fișa
+    // lead-ului (sidebar-ul nu îl mai arată), dar NU atingem istoricul:
+    // lead_activities păstrează toate alocările/realocările anterioare
+    // neschimbate, doar coloanele curente de pe `leads` se golesc.
+    if (newStatus === 'new') {
+      updates.assigned_to = null
+      updates.assigned_at = null
+      updates.assigned_by = null
+    }
 
     await supabase.from('leads').update(updates).eq('id', lead.id)
     await supabase.from('lead_activities').insert({
@@ -292,23 +301,32 @@ export default function LeadDetailPage() {
   async function reassignLead(agentId: string) {
     if (!lead) return
     const agentName = agents.find(a => a.id === agentId)?.full_name || 'agent'
+    // Prima alocare (lead încă „nealocat”) → statusul trece automat pe
+    // „Alocat”, la fel ca la alocarea din Inbox. La o REalocare ulterioară
+    // (statusul a avansat deja — contactat, ofertă trimisă etc.) NU atingem
+    // statusul, doar agentul — nu vrem să dăm un lead înapoi la „Alocat”.
+    const isFirstAssignment = lead.status === 'new'
 
-    await supabase.from('leads').update({
+    const updates: Database['public']['Tables']['leads']['Update'] = {
       assigned_to: agentId, assigned_by: profile!.id, assigned_at: new Date().toISOString(),
-    }).eq('id', lead.id)
+    }
+    if (isFirstAssignment) updates.status = 'assigned'
+
+    await supabase.from('leads').update(updates).eq('id', lead.id)
 
     await supabase.from('lead_activities').insert({
       lead_id: lead.id, user_id: profile!.id, type: 'assignment',
-      content: `Lead realocat către ${agentName}`, metadata: { assigned_to: agentId },
+      content: isFirstAssignment ? `Lead alocat către ${agentName}` : `Lead realocat către ${agentName}`,
+      metadata: { assigned_to: agentId },
     })
     await supabase.from('notifications').insert({
-      user_id: agentId, type: 'lead_assigned', title: 'Lead realocat',
+      user_id: agentId, type: 'lead_assigned', title: isFirstAssignment ? 'Lead nou alocat' : 'Lead realocat',
       body: `${fullName(lead.first_name, lead.last_name)} — ${lead.destination || 'fără destinație'}`,
       lead_id: lead.id,
     })
 
     setShowAssignDropdown(false)
-    toast({ title: `Lead realocat către ${agentName}`, variant: 'success' })
+    toast({ title: isFirstAssignment ? `Lead alocat către ${agentName}` : `Lead realocat către ${agentName}`, variant: 'success' })
     fetchLead()
   }
 

@@ -7,11 +7,16 @@
  * componentelor din src/components/leads/new-lead/*.
  *
  * Folosit pentru: Walk-in agenție, telefon, referral
- * Lead-ul se creează cu status "assigned" direct la agentul curent
+ * Lead-ul se creează cu status "assigned" direct la agentul curent —
+ * DAR doar dacă cel care adaugă e agent. Un admin/manager introduce
+ * lead-uri „pentru agenție”, nu pentru el însuși, așa că la ei lead-ul
+ * intră cu status "new" (Nou/Nealocat) și fără agent alocat, ca să fie
+ * vizibil în Inbox și distribuibil normal.
  *
  * Fix-uri aplicate:
  * - Câmpuri goale devin null (nu "" care crapă pe DATE columns)
  * - Toast feedback la salvare
+ * - Admin/manager nu se auto-alocă lead-ul (vezi mai sus)
  */
 
 'use client'
@@ -68,6 +73,13 @@ export default function NewLeadPage() {
     setSaving(true)
     setError(null)
 
+    // Admin/manager introduc lead-uri „pentru agenție”, nu pentru ei
+    // înșiși — dacă le auto-alocam, lead-ul intra direct pe „Alocat” la
+    // adminul/managerul respectiv și nu mai apărea nicăieri în Inbox (nu
+    // afișăm tichetele lor). Un agent care adaugă manual un lead (walk-in,
+    // telefon) și-l alocă în continuare direct lui, ca până acum.
+    const isAdminOrManager = profile!.role === 'admin' || profile!.role === 'manager'
+
     // Insert lead — empty strings become null to avoid DB type errors
     const { data, error: insertError } = await supabase
       .from('leads')
@@ -88,10 +100,10 @@ export default function NewLeadPage() {
         trip_type: form.trip_type || null,
         message: form.message || null,
         priority: form.priority,
-        assigned_to: profile!.id,
-        assigned_at: new Date().toISOString(),
-        assigned_by: profile!.id,
-        status: 'assigned',
+        assigned_to: isAdminOrManager ? null : profile!.id,
+        assigned_at: isAdminOrManager ? null : new Date().toISOString(),
+        assigned_by: isAdminOrManager ? null : profile!.id,
+        status: isAdminOrManager ? 'new' : 'assigned',
       })
       .select('id')
       .single()
