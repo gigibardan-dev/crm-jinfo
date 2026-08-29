@@ -9,12 +9,14 @@
  *
  * Kanban: afișează toate leadurile (scroll per coloană)
  * List: paginat la 25/50/100 per pagină
- * Filtre: agent, sursă, status, remindere scadente, prioritate, perioadă
+ * Filtre: agent, sursă, status, remindere scadente, lead-uri stagnante,
+ * prioritate, perioadă
  * Won value modal la marcare câștigat
  *
- * Filtre din URL (folosite de cardurile din Dashboard, ex. /leads?status=won
- * sau /leads?reminders=due) — citite o singură dată la montare, sursa de
- * adevăr rămâne state-ul local din pagină cât timp userul mai schimbă filtrele.
+ * Filtre din URL (folosite de cardurile din Dashboard, ex. /leads?status=won,
+ * /leads?reminders=due sau /leads?stagnant=true) — citite o singură dată la
+ * montare, sursa de adevăr rămâne state-ul local din pagină cât timp userul
+ * mai schimbă filtrele.
  */
 
 'use client'
@@ -27,6 +29,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Header } from '@/components/layout/Header'
 import type { Lead, PipelineStage, Profile, LeadSource, Database } from '@/lib/types/database'
 import { IN_PROGRESS_STATUSES } from '@/lib/utils/constants'
+import { getStagnantInfo } from '@/lib/utils/stagnantLeads'
 import { PipelineToolbar, type PipelineViewMode } from '@/components/leads/pipeline/PipelineToolbar'
 import { PipelineFilterBar } from '@/components/leads/pipeline/PipelineFilterBar'
 import { KanbanBoard } from '@/components/leads/pipeline/KanbanBoard'
@@ -66,7 +69,8 @@ function PipelinePageContent() {
   // filtrată, ca userul să vadă imediat leadurile relevante.
   const initialStatus = searchParams.get('status') || 'all'
   const initialRemindersDue = searchParams.get('reminders') === 'due'
-  const hasUrlFilters = initialStatus !== 'all' || initialRemindersDue
+  const initialStagnant = searchParams.get('stagnant') === 'true'
+  const hasUrlFilters = initialStatus !== 'all' || initialRemindersDue || initialStagnant
 
   const [leads, setLeads] = useState<Lead[]>([])
   const [stages, setStages] = useState<PipelineStage[]>([])
@@ -81,6 +85,7 @@ function PipelinePageContent() {
   const [filterSource, setFilterSource] = useState<string>('all')
   const [filterStatus, setFilterStatus] = useState<string>(initialStatus)
   const [filterRemindersDue, setFilterRemindersDue] = useState<boolean>(initialRemindersDue)
+  const [filterStagnant, setFilterStagnant] = useState<boolean>(initialStagnant)
   const [filterPriority, setFilterPriority] = useState<string>('all')
   const [filterDateFrom, setFilterDateFrom] = useState<string>('')
   const [filterDateTo, setFilterDateTo] = useState<string>('')
@@ -145,22 +150,23 @@ function PipelinePageContent() {
         if (!IN_PROGRESS_SET.includes(lead.status)) return false
       } else if (filterStatus !== 'all' && lead.status !== filterStatus) return false
       if (filterRemindersDue && !reminderLeadIds.has(lead.id)) return false
+      if (filterStagnant && !getStagnantInfo(lead.status, lead.last_interaction_at)) return false
       if (filterPriority !== 'all' && lead.priority !== filterPriority) return false
       if (filterDateFrom && lead.created_at < filterDateFrom) return false
       if (filterDateTo && lead.created_at > filterDateTo + 'T23:59:59') return false
       return true
     })
-  }, [leads, filterAgent, filterSource, filterStatus, filterRemindersDue, reminderLeadIds, filterPriority, filterDateFrom, filterDateTo])
+  }, [leads, filterAgent, filterSource, filterStatus, filterRemindersDue, reminderLeadIds, filterStagnant, filterPriority, filterDateFrom, filterDateTo])
 
   // Reset page when filters change
-  useEffect(() => { setCurrentPage(1) }, [filterAgent, filterSource, filterStatus, filterRemindersDue, filterPriority, filterDateFrom, filterDateTo])
+  useEffect(() => { setCurrentPage(1) }, [filterAgent, filterSource, filterStatus, filterRemindersDue, filterStagnant, filterPriority, filterDateFrom, filterDateTo])
 
   const hasActiveFilters = filterAgent !== 'all' || filterSource !== 'all' || filterStatus !== 'all' || filterRemindersDue
-    || filterPriority !== 'all' || !!filterDateFrom || !!filterDateTo
+    || filterStagnant || filterPriority !== 'all' || !!filterDateFrom || !!filterDateTo
 
   function clearFilters() {
     setFilterAgent('all'); setFilterSource('all'); setFilterStatus('all'); setFilterRemindersDue(false)
-    setFilterPriority('all'); setFilterDateFrom(''); setFilterDateTo('')
+    setFilterStagnant(false); setFilterPriority('all'); setFilterDateFrom(''); setFilterDateTo('')
   }
 
   // --- Pagination slicing (list view only) ---
@@ -222,6 +228,8 @@ function PipelinePageContent() {
             onFilterStatusChange={setFilterStatus}
             filterRemindersDue={filterRemindersDue}
             onFilterRemindersDueChange={setFilterRemindersDue}
+            filterStagnant={filterStagnant}
+            onFilterStagnantChange={setFilterStagnant}
             filterPriority={filterPriority}
             onFilterPriorityChange={setFilterPriority}
             filterDateFrom={filterDateFrom}

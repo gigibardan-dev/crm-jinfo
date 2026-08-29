@@ -87,6 +87,7 @@ export type Database = {
           assigned_by: string | null
           first_response_at: string | null
           last_activity_at: string | null
+          last_interaction_at: string
           next_followup_at: string | null
           lost_reason: string | null
           won_value: number | null
@@ -125,6 +126,7 @@ export type Database = {
           assigned_by?: string | null
           first_response_at?: string | null
           last_activity_at?: string | null
+          last_interaction_at?: string
           next_followup_at?: string | null
           lost_reason?: string | null
           won_value?: number | null
@@ -158,6 +160,7 @@ export type Database = {
           assigned_at?: string | null
           assigned_by?: string | null
           first_response_at?: string | null
+          last_interaction_at?: string
           next_followup_at?: string | null
           lost_reason?: string | null
           won_value?: number | null

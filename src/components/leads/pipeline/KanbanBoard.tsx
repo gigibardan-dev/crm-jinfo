@@ -19,6 +19,7 @@ import Link from 'next/link'
 import { Bell, User } from 'lucide-react'
 import { SourceIcon } from '@/components/leads/SourceIcon'
 import { PriorityBadge } from '@/components/leads/PriorityBadge'
+import { StagnantBadge } from '@/components/leads/StagnantBadge'
 import type { Lead, PipelineStage, Profile } from '@/lib/types/database'
 import { fullName, timeAgo } from '@/lib/utils'
 
@@ -65,6 +66,7 @@ export function KanbanBoard({ visibleStages, leads, agentsById }: KanbanBoardPro
                       <span>{timeAgo(lead.last_activity_at || lead.created_at)}</span>
                       {lead.next_followup_at && <span className="flex items-center gap-0.5"><Bell size={10} /> Reminder</span>}
                     </div>
+                    <StagnantBadge status={lead.status} lastInteractionAt={lead.last_interaction_at} className="mt-1.5" />
                   </Link>
                 )
               })}

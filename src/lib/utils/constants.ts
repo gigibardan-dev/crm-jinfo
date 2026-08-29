@@ -47,6 +47,20 @@ export const IN_PROGRESS_STATUSES = [
   'contacted', 'quote_sent', 'follow_up', 'quote_accepted', 'booking_pending', 'payment_received', 'confirmed',
 ] as const
 
+// Statusuri finale (is_terminal=true în pipeline_stages) — excluse din
+// verificarea de lead stagnant (un lead câștigat/pierdut/necalificat nu mai
+// „stagnează", e închis). Hardcodat ca și restul statusurilor din cod
+// (status === 'won'/'lost' apare deja peste tot ca literal), nu citit din
+// DB, ca să nu mai facem un fetch suplimentar doar pt. atât.
+export const TERMINAL_STATUSES = ['won', 'lost', 'unqualified'] as const
+
+// Alerte lead-uri stagnante (follow-up reminders) — vezi
+// src/lib/utils/stagnantLeads.ts. Prag „stagnant": nicio interacțiune
+// (comentariu/schimbare status) de peste N ore. Prag „critic": culoare
+// roșie în loc de galben, pt. lead-uri și mai vechi.
+export const STAGNANT_THRESHOLD_HOURS = 48
+export const STAGNANT_CRITICAL_HOURS = 96
+
 // Date format constants
 export const DATE_FORMAT = 'dd MMM yyyy'
 export const DATETIME_FORMAT = 'dd MMM yyyy, HH:mm'

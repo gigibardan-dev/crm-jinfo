@@ -20,6 +20,7 @@ import { Header } from '@/components/layout/Header'
 import { Inbox, TrendingUp, Clock, AlertTriangle, Users, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
 import { IN_PROGRESS_STATUSES } from '@/lib/utils/constants'
+import { StagnantLeadsWidget } from '@/components/dashboard/StagnantLeadsWidget'
 
 interface DashboardStats {
   totalNew: number
@@ -161,6 +162,10 @@ export default function DashboardPage() {
             </Link>
           </div>
         )}
+
+        {/* Lead-uri stagnante — fără nicio interacțiune (comentariu/schimbare
+            status) de peste pragul configurat. Vezi StagnantLeadsWidget. */}
+        <StagnantLeadsWidget />
       </div>
     </>
   )

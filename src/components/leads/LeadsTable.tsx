@@ -26,6 +26,7 @@ import Link from 'next/link'
 import { SourceIcon } from '@/components/leads/SourceIcon'
 import { PriorityBadge } from '@/components/leads/PriorityBadge'
 import { StatusBadge } from '@/components/leads/StatusBadge'
+import { StagnantBadge } from '@/components/leads/StagnantBadge'
 import type { Lead, PipelineStage, Profile } from '@/lib/types/database'
 import { fullName, timeAgo } from '@/lib/utils'
 
@@ -67,7 +68,10 @@ export function LeadsTable({ leads, stages, agentsById }: LeadsTableProps) {
               <td className="px-4 py-3"><StatusBadge name={stage?.name || lead.status} color={stage?.color} /></td>
               {showAgentColumn && <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{agent?.full_name || '—'}</td>}
               <td className="px-4 py-3"><PriorityBadge priority={lead.priority} size="sm" /></td>
-              <td className="px-4 py-3 text-xs text-slate-400">{timeAgo(lead.last_activity_at || lead.created_at)}</td>
+              <td className="px-4 py-3 text-xs text-slate-400">
+                <div>{timeAgo(lead.last_activity_at || lead.created_at)}</div>
+                <StagnantBadge status={lead.status} lastInteractionAt={lead.last_interaction_at} className="mt-1" />
+              </td>
             </tr>
           )
         })}
