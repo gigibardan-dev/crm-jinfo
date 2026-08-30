@@ -33,6 +33,23 @@ export const TRIP_TYPES = [
   { value: 'other', label: 'Altul' },
 ] as const
 
+// Luni — folosit de filtrul rapid „Lună întreagă" din Pipeline
+// (PipelineFilterBar), ca alternativă la alegerea manuală „De la / până la".
+export const MONTHS = [
+  { value: '01', label: 'Ianuarie' },
+  { value: '02', label: 'Februarie' },
+  { value: '03', label: 'Martie' },
+  { value: '04', label: 'Aprilie' },
+  { value: '05', label: 'Mai' },
+  { value: '06', label: 'Iunie' },
+  { value: '07', label: 'Iulie' },
+  { value: '08', label: 'August' },
+  { value: '09', label: 'Septembrie' },
+  { value: '10', label: 'Octombrie' },
+  { value: '11', label: 'Noiembrie' },
+  { value: '12', label: 'Decembrie' },
+] as const
+
 // Priority config — kept for backward compatibility, PriorityBadge handles display
 export const PRIORITY_CONFIG = {
   low: { label: 'Scăzut', color: '#94a3b8', bgColor: '#f1f5f9' },

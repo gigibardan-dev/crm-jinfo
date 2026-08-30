@@ -115,23 +115,26 @@ export function LeadTimeline({ activities, stages, onRefresh }: LeadTimelineProp
 
               <div className="flex-1 min-w-0">
                 {/* Header: user + timestamp + edit/delete actions */}
-                <div className="flex items-center gap-2 text-xs text-slate-400">
-                  <span className="font-medium text-slate-600 dark:text-slate-300">
+                <div className="flex items-center flex-wrap gap-x-2 gap-y-1 text-xs text-slate-400">
+                  <span className="font-medium text-slate-600 dark:text-slate-300 truncate max-w-[60vw] sm:max-w-none">
                     {activity.user?.full_name || 'Sistem'}
                   </span>
                   <span>·</span>
-                  <span>{formatDateTime(activity.created_at)}</span>
+                  <span className="shrink-0">{formatDateTime(activity.created_at)}</span>
 
-                  {/* Edit/Delete buttons — show on hover for comments */}
+                  {/* Edit/Delete buttons — vizibile mereu pe mobil/tabletă (nu există
+                      hover pe touch, deci un admin de pe telefon n-ar putea niciodată
+                      să le atingă); pe desktop rămân ascunse până la hover pe rând,
+                      ca să nu aglomereze vizual timeline-ul. */}
                   {modifiable && !isEditing && !isDeleting && (
-                    <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="ml-auto flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                       <button onClick={() => startEdit(activity)}
-                        className="p-1 rounded text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950"
+                        className="p-1.5 sm:p-1 rounded text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950"
                         title="Editează comentariu">
                         <Pencil size={12} />
                       </button>
                       <button onClick={() => setDeletingId(activity.id)}
-                        className="p-1 rounded text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950"
+                        className="p-1.5 sm:p-1 rounded text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950"
                         title="Șterge comentariu">
                         <Trash2 size={12} />
                       </button>

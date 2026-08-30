@@ -89,6 +89,13 @@ function PipelinePageContent() {
   const [filterPriority, setFilterPriority] = useState<string>('all')
   const [filterDateFrom, setFilterDateFrom] = useState<string>('')
   const [filterDateTo, setFilterDateTo] = useState<string>('')
+  // Shortcut „Lună întreagă" din PipelineFilterBar — scrie direct în
+  // filterDateFrom/filterDateTo (prima/ultima zi a lunii alese, vezi
+  // applyMonthYear mai jos). filterMonth revine la '' când userul editează
+  // manual câmpurile de dată (handleDateFromChange/handleDateToChange), ca
+  // cele două căi să nu rămână desincronizate vizual.
+  const [filterMonth, setFilterMonth] = useState<string>('')
+  const [filterYear, setFilterYear] = useState<string>(String(new Date().getFullYear()))
   const [showFilters, setShowFilters] = useState(hasUrlFilters)
 
   // --- Pagination (list view only) ---
@@ -167,6 +174,31 @@ function PipelinePageContent() {
   function clearFilters() {
     setFilterAgent('all'); setFilterSource('all'); setFilterStatus('all'); setFilterRemindersDue(false)
     setFilterStagnant(false); setFilterPriority('all'); setFilterDateFrom(''); setFilterDateTo('')
+    setFilterMonth(''); setFilterYear(String(new Date().getFullYear()))
+  }
+
+  // Editare manuală a intervalului — resetează shortcut-ul de lună, ca cele
+  // două căi (manual vs. „Lună întreagă") să nu arate desincronizat.
+  function handleDateFromChange(value: string) { setFilterDateFrom(value); setFilterMonth('') }
+  function handleDateToChange(value: string) { setFilterDateTo(value); setFilterMonth('') }
+
+  /** Aplică prima/ultima zi a lunii `month` (01-12) din anul `year` direct în filterDateFrom/To. */
+  function applyMonthYear(month: string, year: string) {
+    if (!month) { setFilterDateFrom(''); setFilterDateTo(''); return }
+    const y = Number(year)
+    const lastDay = new Date(y, Number(month), 0).getDate() // ziua 0 a lunii următoare = ultima zi a lunii curente
+    setFilterDateFrom(`${year}-${month}-01`)
+    setFilterDateTo(`${year}-${month}-${String(lastDay).padStart(2, '0')}`)
+  }
+
+  function handleMonthChange(month: string) {
+    setFilterMonth(month)
+    applyMonthYear(month, filterYear)
+  }
+
+  function handleYearChange(year: string) {
+    setFilterYear(year)
+    if (filterMonth) applyMonthYear(filterMonth, year) // anul singur, fără lună aleasă, nu filtrează nimic
   }
 
   // --- Pagination slicing (list view only) ---
@@ -233,9 +265,13 @@ function PipelinePageContent() {
             filterPriority={filterPriority}
             onFilterPriorityChange={setFilterPriority}
             filterDateFrom={filterDateFrom}
-            onFilterDateFromChange={setFilterDateFrom}
+            onFilterDateFromChange={handleDateFromChange}
             filterDateTo={filterDateTo}
-            onFilterDateToChange={setFilterDateTo}
+            onFilterDateToChange={handleDateToChange}
+            filterMonth={filterMonth}
+            onFilterMonthChange={handleMonthChange}
+            filterYear={filterYear}
+            onFilterYearChange={handleYearChange}
             hasActiveFilters={hasActiveFilters}
             onClearFilters={clearFilters}
           />

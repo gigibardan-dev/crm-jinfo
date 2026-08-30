@@ -21,6 +21,7 @@ import { Inbox, TrendingUp, Clock, AlertTriangle, Users, CheckCircle2 } from 'lu
 import Link from 'next/link'
 import { IN_PROGRESS_STATUSES } from '@/lib/utils/constants'
 import { StagnantLeadsWidget } from '@/components/dashboard/StagnantLeadsWidget'
+import { AutoAssignPanel } from '@/components/dashboard/AutoAssignPanel'
 
 interface DashboardStats {
   totalNew: number
@@ -162,6 +163,10 @@ export default function DashboardPage() {
             </Link>
           </div>
         )}
+
+        {/* Alocare automată round-robin — doar admin/manager (self-gated
+            intern). Vezi AutoAssignPanel + migrarea 005. */}
+        <AutoAssignPanel />
 
         {/* Lead-uri stagnante — fără nicio interacțiune (comentariu/schimbare
             status) de peste pragul configurat. Vezi StagnantLeadsWidget. */}

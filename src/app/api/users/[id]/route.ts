@@ -6,8 +6,12 @@
  * Verifică sesiunea + rolul curent (trebuie admin). Actualizează selectiv,
  * prin service-role client: email/parolă în Supabase Auth (doar dacă
  * trimise), și câmpurile din `profiles` (full_name, email, phone, role,
- * is_active) — folosit atât din pagina de profil agent (editare completă),
- * cât și din /settings (toggle rapid activ/inactiv, doar `is_active`).
+ * is_active, available_for_autoassign) — folosit atât din pagina de profil
+ * agent (editare completă), cât și din /settings (toggle rapid activ/
+ * inactiv) și din panoul de alocare automată din Dashboard (adminul poate
+ * suprascrie disponibilitatea round-robin a oricărui agent/manager — fiecare
+ * își poate schimba oricum singur propriul status, direct, fără acest
+ * endpoint, RLS permițând `id = auth.uid()` pe `profiles`).
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -39,7 +43,7 @@ export async function PATCH(
   }
 
   const body = await request.json()
-  const { full_name, email, phone, role, password, is_active } = body
+  const { full_name, email, phone, role, password, is_active, available_for_autoassign } = body
 
   const adminClient = createAdminClient()
 
@@ -70,6 +74,7 @@ export async function PATCH(
   if (phone !== undefined) profileUpdate.phone = phone || null
   if (role !== undefined) profileUpdate.role = role
   if (is_active !== undefined) profileUpdate.is_active = is_active
+  if (available_for_autoassign !== undefined) profileUpdate.available_for_autoassign = available_for_autoassign
 
   if (Object.keys(profileUpdate).length > 0) {
     const { error: profileError } = await adminClient

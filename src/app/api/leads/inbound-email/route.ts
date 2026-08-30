@@ -269,6 +269,7 @@ export async function POST(request: NextRequest) {
         priority: 'high',
         tags: ['revizuire-ai'],
         status: 'new',
+        eligible_for_auto_assign: true, // lead nou organic (email forward) — vezi 005_round_robin_auto_assign.sql
       }
     : {
         first_name: extraction!.nume_client?.split(' ')[0] || null,
@@ -287,6 +288,7 @@ export async function POST(request: NextRequest) {
         nr_adults: 1,
         priority: 'medium',
         status: 'new',
+        eligible_for_auto_assign: true, // lead nou organic (email forward) — vezi 005_round_robin_auto_assign.sql
       }
 
   const { data: lead, error } = await supabase.from('leads').insert(leadData).select('id').single()

@@ -163,6 +163,7 @@ export async function POST(request: NextRequest) {
         ? jinfocruisePriority(source)
         : (typeof body.interest_score === 'number' ? scoreToPriority(body.interest_score) : (body.priority || 'medium')),
       status: 'new',
+      eligible_for_auto_assign: true, // lead nou organic (webhook/formular) — vezi 005_round_robin_auto_assign.sql
     }
 
     const { data: lead, error } = await supabase

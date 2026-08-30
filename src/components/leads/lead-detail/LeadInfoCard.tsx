@@ -156,9 +156,9 @@ export function LeadInfoCard({ lead, editing, editForm, onEditFormChange, onStar
           <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
             {fullName(lead.first_name, lead.last_name)}
           </h2>
-          <div className="flex items-center gap-3 mt-1.5 text-sm text-slate-500 dark:text-slate-400">
-            {lead.phone && <span className="flex items-center gap-1"><Phone size={13} /> {formatPhone(lead.phone)}</span>}
-            {lead.email && <span className="flex items-center gap-1"><Mail size={13} /> {lead.email}</span>}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 mt-1.5 text-sm text-slate-500 dark:text-slate-400">
+            {lead.phone && <span className="flex items-center gap-1 min-w-0"><Phone size={13} className="shrink-0" /> <span className="truncate">{formatPhone(lead.phone)}</span></span>}
+            {lead.email && <span className="flex items-center gap-1 min-w-0"><Mail size={13} className="shrink-0" /> <span className="truncate">{lead.email}</span></span>}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 text-sm mt-4">
             <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">

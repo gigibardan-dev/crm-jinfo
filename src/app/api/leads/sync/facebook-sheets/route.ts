@@ -212,6 +212,7 @@ async function handleSync(request: NextRequest) {
             ...(raw ? { facebook: raw } : {}),
           },
           status: 'new',
+          eligible_for_auto_assign: true, // lead nou organic (sincronizare) — vezi 005_round_robin_auto_assign.sql
         }
       })
 

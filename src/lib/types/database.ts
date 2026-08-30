@@ -34,6 +34,7 @@ export type Database = {
           role: 'admin' | 'manager' | 'agent'
           avatar_url: string | null
           is_active: boolean
+          available_for_autoassign: boolean
           created_at: string
           updated_at: string
         }
@@ -45,6 +46,7 @@ export type Database = {
           role?: 'admin' | 'manager' | 'agent'
           avatar_url?: string | null
           is_active?: boolean
+          available_for_autoassign?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -56,6 +58,7 @@ export type Database = {
           role?: 'admin' | 'manager' | 'agent'
           avatar_url?: string | null
           is_active?: boolean
+          available_for_autoassign?: boolean
           updated_at?: string
         }
         Relationships: []
@@ -97,6 +100,7 @@ export type Database = {
           order_number: string | null
           contract_number: string | null
           invoice_number: string | null
+          eligible_for_auto_assign: boolean
           created_at: string
           updated_at: string
         }
@@ -136,6 +140,7 @@ export type Database = {
           order_number?: string | null
           contract_number?: string | null
           invoice_number?: string | null
+          eligible_for_auto_assign?: boolean
         }
         Update: {
           first_name?: string | null
@@ -170,6 +175,7 @@ export type Database = {
           order_number?: string | null
           contract_number?: string | null
           invoice_number?: string | null
+          eligible_for_auto_assign?: boolean
         }
         Relationships: [
           {
@@ -406,6 +412,34 @@ export type Database = {
           },
         ]
       }
+      app_settings: {
+        Row: {
+          key: string
+          value: Json
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          key: string
+          value: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          value?: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'app_settings_updated_by_fkey'
+            columns: ['updated_by']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -444,6 +478,7 @@ export type Notification = Database['public']['Tables']['notifications']['Row']
 export type PipelineStage = Database['public']['Tables']['pipeline_stages']['Row']
 export type LeadSource = Database['public']['Tables']['lead_sources']['Row']
 export type LeadAttachment = Database['public']['Tables']['lead_attachments']['Row']
+export type AppSetting = Database['public']['Tables']['app_settings']['Row']
 
 // Extended types (with joins)
 export type LeadWithAgent = Lead & {

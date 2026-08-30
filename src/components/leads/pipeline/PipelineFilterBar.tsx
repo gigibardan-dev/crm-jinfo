@@ -10,15 +10,35 @@
  * fără state propriu. Filtrele de status/remindere/stagnante sunt cele
  * populate automat când se vine de pe cardurile din Dashboard (ex.
  * /leads?status=won sau /leads?stagnant=true).
+ *
+ * Intervalul de date are două căi, care scriu în ACELEAȘI filterDateFrom/
+ * filterDateTo:
+ * - manual, câmp cu câmp („De la” / „până la”);
+ * - rapid, „Lună + An” — selectând o lună, pagina părinte calculează prima/
+ *   ultima zi a lunii respective și le pune direct în filterDateFrom/To
+ *   (vezi handleMonthChange/handleYearChange din leads/page.tsx). Editarea
+ *   manuală a câmpurilor de dată resetează selectul de lună la „Orice lună”,
+ *   ca cele două căi să nu rămână desincronizate vizual.
+ *
+ * Responsive: „De la/până la” stă pe un rând orizontal doar de la `sm` în
+ * sus — sub `sm` (telefon) cele două input-uri de tip date (cu lățime
+ * minimă impusă de browser) nu încap unul lângă altul pe același rând, deci
+ * fiecare stă pe rândul lui.
  * Extras din src/app/(app)/leads/page.tsx — comportament identic.
  */
 
 'use client'
 
 import { Bell, AlertTriangle } from 'lucide-react'
+import { MONTHS } from '@/lib/utils/constants'
 import type { Profile, LeadSource, PipelineStage } from '@/lib/types/database'
 
 const selectClass = "px-3 py-1.5 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+const dateInputClass = "flex-1 sm:flex-none px-2 py-1.5 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+
+// Anii disponibili în selectul rapid „Lună întreagă" — anul curent + ultimii 4.
+const CURRENT_YEAR = new Date().getFullYear()
+const YEARS = Array.from({ length: 5 }, (_, i) => String(CURRENT_YEAR - i))
 
 interface PipelineFilterBarProps {
   isAdminOrManager: boolean
@@ -41,6 +61,10 @@ interface PipelineFilterBarProps {
   onFilterDateFromChange: (value: string) => void
   filterDateTo: string
   onFilterDateToChange: (value: string) => void
+  filterMonth: string
+  onFilterMonthChange: (value: string) => void
+  filterYear: string
+  onFilterYearChange: (value: string) => void
   hasActiveFilters: boolean
   onClearFilters: () => void
 }
@@ -55,6 +79,8 @@ export function PipelineFilterBar({
   filterPriority, onFilterPriorityChange,
   filterDateFrom, onFilterDateFromChange,
   filterDateTo, onFilterDateToChange,
+  filterMonth, onFilterMonthChange,
+  filterYear, onFilterYearChange,
   hasActiveFilters, onClearFilters,
 }: PipelineFilterBarProps) {
   return (
@@ -81,13 +107,29 @@ export function PipelineFilterBar({
         <option value="medium">Mediu</option>
         <option value="low">Scăzut</option>
       </select>
-      <div className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400">
-        <span>De la</span>
-        <input type="date" value={filterDateFrom} onChange={(e) => onFilterDateFromChange(e.target.value)}
-          className="px-2 py-1.5 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        <span>până la</span>
-        <input type="date" value={filterDateTo} onChange={(e) => onFilterDateToChange(e.target.value)}
-          className="px-2 py-1.5 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      {/* Interval manual — pe telefon fiecare câmp de dată stă pe rândul lui,
+          altfel nu încap unul lângă altul (lățime minimă impusă de browser). */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 w-full sm:w-auto text-sm text-slate-500 dark:text-slate-400">
+        <div className="flex items-center gap-1.5">
+          <span className="shrink-0">De la</span>
+          <input type="date" value={filterDateFrom} onChange={(e) => onFilterDateFromChange(e.target.value)} className={dateInputClass} />
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="shrink-0">până la</span>
+          <input type="date" value={filterDateTo} onChange={(e) => onFilterDateToChange(e.target.value)} className={dateInputClass} />
+        </div>
+      </div>
+
+      {/* Lună întreagă — shortcut pt. intervalul de mai sus: alege o lună (+ an)
+          și pagina părinte calculează automat prima/ultima zi a lunii. */}
+      <div className="flex items-center gap-1.5">
+        <select value={filterMonth} onChange={(e) => onFilterMonthChange(e.target.value)} className={selectClass} title="Lună întreagă">
+          <option value="">Orice lună</option>
+          {MONTHS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+        </select>
+        <select value={filterYear} onChange={(e) => onFilterYearChange(e.target.value)} className={selectClass} title="An">
+          {YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
+        </select>
       </div>
       <button
         type="button"

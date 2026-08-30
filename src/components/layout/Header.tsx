@@ -29,7 +29,12 @@ export function Header({ title }: { title?: string }) {
   const supabase = createClient()
   const { toggle } = useMobileNav()
 
-  // Fetch unread notification count + realtime subscription
+  // Fetch unread notification count + realtime subscription. Re-numărăm
+  // direct din DB la orice schimbare (INSERT/UPDATE/DELETE) — nu doar
+  // incrementăm la INSERT — ca badge-ul să rămână corect și când o
+  // notificare e marcată citită din pagina /notifications sau dintr-un alt
+  // tab/dispozitiv, fără să depindă de un remount al Header-ului (care
+  // altfel apărea abia la următoarea navigare).
   useEffect(() => {
     if (!profile?.id) return
 
@@ -47,10 +52,10 @@ export function Header({ title }: { title?: string }) {
     const channel = supabase
       .channel('header-notifications')
       .on('postgres_changes', {
-        event: 'INSERT', schema: 'public', table: 'notifications',
+        event: '*', schema: 'public', table: 'notifications',
         filter: `user_id=eq.${profile.id}`,
       }, () => {
-        setUnreadCount((prev) => prev + 1)
+        fetchUnread()
       })
       .subscribe()
 
