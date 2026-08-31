@@ -164,13 +164,13 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Alocare automată round-robin — doar admin/manager (self-gated
-            intern). Vezi AutoAssignPanel + migrarea 005. */}
-        <AutoAssignPanel />
-
         {/* Lead-uri stagnante — fără nicio interacțiune (comentariu/schimbare
             status) de peste pragul configurat. Vezi StagnantLeadsWidget. */}
         <StagnantLeadsWidget />
+
+        {/* Alocare automată round-robin — doar admin/manager (self-gated
+            intern). Vezi AutoAssignPanel + migrarea 005. */}
+        <AutoAssignPanel />
       </div>
     </>
   )

@@ -24,6 +24,7 @@ import { UsersSection } from '@/components/settings/UsersSection'
 import type { NewUserFormData } from '@/components/settings/NewUserForm'
 import { PipelineStagesSection } from '@/components/settings/PipelineStagesSection'
 import { LeadSourcesSection } from '@/components/settings/LeadSourcesSection'
+import { AutoAssignPanel } from '@/components/dashboard/AutoAssignPanel'
 
 export default function SettingsPage() {
   const { isAdmin } = useAuth()
@@ -144,6 +145,10 @@ export default function SettingsPage() {
         <PipelineStagesSection stages={stages} />
 
         <LeadSourcesSection sources={sources} />
+
+        {/* Oglindă a panoului de pe Dashboard — aceeași componentă,
+            self-gated admin/manager intern. Vezi AutoAssignPanel + migrarea 005. */}
+        <AutoAssignPanel />
       </div>
     </>
   )

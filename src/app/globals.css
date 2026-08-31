@@ -126,6 +126,61 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+/*
+ * Token-uri pt. componentele din src/components/reports/* (grafice SVG
+ * custom, fără librărie externă — vezi skill-ul dataviz). Un singur hue
+ * (albastru) pt. comparații de magnitudine (bare/arie), plus o rampă
+ * ordinală (aceeași familie de hue, doar treptele variază) pt. funnel-ul
+ * de pipeline. Palette validată — vezi JINFOTOURS_CRM_PLAN.md / doc
+ * rapoarte pt. detalii. Definite separat de --chart-1..5 de mai sus
+ * (acelea sunt shadcn, nefolosite încă) ca să nu se suprascrie.
+ */
+:root {
+  --rpt-surface: #fcfcfb;
+  --rpt-text-primary: #0b0b0b;
+  --rpt-text-secondary: #52514e;
+  --rpt-text-muted: #898781;
+  --rpt-grid: #e1e0d9;
+  --rpt-baseline: #c3c2b7;
+  --rpt-series: #2a78d6;
+  --rpt-series-wash: rgba(42, 120, 214, 0.10);
+  --rpt-good: #0ca30c;
+  --rpt-critical: #d03b3b;
+  /* Rampă ordinală (etape pipeline, cea mai deschisă → cea mai închisă) */
+  --rpt-ordinal-1: #86b6ef;
+  --rpt-ordinal-2: #6da7ec;
+  --rpt-ordinal-3: #5598e7;
+  --rpt-ordinal-4: #3987e5;
+  --rpt-ordinal-5: #2a78d6;
+  --rpt-ordinal-6: #256abf;
+  --rpt-ordinal-7: #1c5cab;
+  --rpt-ordinal-8: #184f95;
+  --rpt-ordinal-9: #104281;
+}
+
+.dark {
+  --rpt-surface: #1a1a19;
+  --rpt-text-primary: #ffffff;
+  --rpt-text-secondary: #c3c2b7;
+  --rpt-text-muted: #898781;
+  --rpt-grid: #2c2c2a;
+  --rpt-baseline: #383835;
+  --rpt-series: #3987e5;
+  --rpt-series-wash: rgba(57, 135, 229, 0.14);
+  --rpt-good: #0ca30c;
+  --rpt-critical: #e66767;
+  /* Rampă ordinală — pornim de la trepte mai deschise (surface e închis) */
+  --rpt-ordinal-1: #cde2fb;
+  --rpt-ordinal-2: #b7d3f6;
+  --rpt-ordinal-3: #9ec5f4;
+  --rpt-ordinal-4: #86b6ef;
+  --rpt-ordinal-5: #6da7ec;
+  --rpt-ordinal-6: #5598e7;
+  --rpt-ordinal-7: #3987e5;
+  --rpt-ordinal-8: #2a78d6;
+  --rpt-ordinal-9: #256abf;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
