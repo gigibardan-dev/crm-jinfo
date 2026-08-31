@@ -15,10 +15,10 @@
  *   agenți + manageri activi (rolul admin nu intră în pool, nu apare aici):
  *   fiecare user își poate schimba propriul status oricând din Sidebar (vezi
  *   Sidebar.tsx) — RLS `profiles_update` permite `id = auth.uid()`. Din acest
- *   panou, DOAR un admin poate suprascrie disponibilitatea ALTUI user (prin
- *   /api/users/[id], admin-only, la fel ca toggle-ul activ/inactiv din
- *   /settings) — un manager vede lista, dar nu poate edita rândul altcuiva
- *   (consistent cu restul aplicației: managerii nu editează alte profiluri).
+ *   panou, orice admin SAU manager poate suprascrie disponibilitatea ALTUI
+ *   user (prin /api/users/[id]/autoassign — endpoint dedicat, deschis și
+ *   managerilor, spre deosebire de /api/users/[id] care rămâne admin-only
+ *   pt. editarea completă a unui cont).
  *
  * Realtime pe `app_settings` + `profiles` — dacă un admin pornește switch-ul
  * sau altcineva își schimbă disponibilitatea din Sidebar chiar când un alt
@@ -37,7 +37,7 @@ import { getInitials } from '@/lib/utils'
 import type { Profile } from '@/lib/types/database'
 
 export function AutoAssignPanel() {
-  const { profile, isAdminOrManager, isAdmin } = useAuth()
+  const { profile, isAdminOrManager } = useAuth()
   const supabase = createClient()
   const { toast } = useToast()
 
@@ -89,8 +89,6 @@ export function AutoAssignPanel() {
 
   async function toggleUserAvailability(user: Profile) {
     const isSelf = user.id === profile?.id
-    if (!isSelf && !isAdmin) return // manager nu editează alt user — vezi doc comment
-
     const next = !user.available_for_autoassign
     setSavingUserId(user.id)
 
@@ -99,7 +97,8 @@ export function AutoAssignPanel() {
       const { error } = await supabase.from('profiles').update({ available_for_autoassign: next }).eq('id', user.id)
       ok = !error
     } else {
-      const res = await fetch(`/api/users/${user.id}`, {
+      // Admin sau manager — endpoint dedicat, vezi doc comment de sus.
+      const res = await fetch(`/api/users/${user.id}/autoassign`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ available_for_autoassign: next }),
@@ -161,7 +160,9 @@ export function AutoAssignPanel() {
         <div className="divide-y divide-slate-100 dark:divide-slate-800 max-h-64 overflow-y-auto">
           {pool.map((user) => {
             const isSelf = user.id === profile?.id
-            const canEdit = isSelf || isAdmin
+            // Panoul e vizibil doar pt. admin/manager (gate mai jos), deci
+            // oricine vede rândul poate să-l editeze — self direct, altul
+            // prin /api/users/[id]/autoassign (admin sau manager).
             return (
               <div key={user.id} className="flex items-center gap-3 px-4 sm:px-5 py-2.5">
                 <div className="w-7 h-7 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-[11px] font-medium text-slate-600 dark:text-slate-300 shrink-0">
@@ -181,9 +182,8 @@ export function AutoAssignPanel() {
                   <button
                     type="button"
                     onClick={() => toggleUserAvailability(user)}
-                    disabled={!canEdit}
                     aria-pressed={user.available_for_autoassign}
-                    title={!canEdit ? 'Doar adminul poate schimba disponibilitatea altui coleg' : (user.available_for_autoassign ? 'Click pentru a opri disponibilitatea' : 'Click pentru a porni disponibilitatea')}
+                    title={user.available_for_autoassign ? 'Click pentru a opri disponibilitatea' : 'Click pentru a porni disponibilitatea'}
                     className={`shrink-0 text-xs font-medium px-2 py-1 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                       user.available_for_autoassign
                         ? 'text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-950 hover:enabled:bg-green-100 dark:hover:enabled:bg-green-900'
