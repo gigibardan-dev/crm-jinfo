@@ -7,11 +7,17 @@
  *
  * Displays chronological activity for a lead:
  * - Status changes, comments, assignments, reminders, edits, system events
- * 
- * Comment-specific features:
- * - Edit own comments (inline edit mode)
- * - Delete own comments (with confirmation)
- * - Admin can edit/delete any comment
+ *
+ * Editare/ștergere — vezi canEdit()/canDelete() mai jos:
+ * - Editare: doar comentarii proprii (conținut liber); admin poate edita
+ *   comentariul oricui. Alte tipuri (status_change, assignment etc.) n-au
+ *   conținut liber de editat.
+ * - Ștergere: proprii comentarii, ca și până acum — DAR adminul poate
+ *   șterge ORICE înregistrare din timeline, de orice tip și de la orice
+ *   utilizator (inclusiv evenimente generate de sistem, cu user_id NULL).
+ *   RLS deja permitea asta la nivel de DB (migrarea 002: `user_id =
+ *   auth.uid() OR is_admin()`, fără restricție de tip) — era doar
+ *   restricționat aici, în UI.
  */
 
 import { useState } from 'react'
@@ -55,10 +61,20 @@ export function LeadTimeline({ activities, stages, onRefresh }: LeadTimelineProp
   // --- Delete state ---
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
-  /** Can current user edit/delete this activity? */
-  function canModify(activity: LeadActivity & { user?: Pick<Profile, 'id'> | null }): boolean {
+  /** Poate edita această activitate? — doar comentarii (conținut liber);
+      owner sau admin. */
+  function canEdit(activity: LeadActivity & { user?: Pick<Profile, 'id'> | null }): boolean {
     if (activity.type !== 'comment') return false
     if (isAdmin) return true
+    return activity.user_id === profile?.id
+  }
+
+  /** Poate șterge această activitate? — adminul poate șterge orice tip, de
+      la oricine; restul utilizatorilor doar comentariile proprii, ca și
+      până acum. */
+  function canDelete(activity: LeadActivity & { user?: Pick<Profile, 'id'> | null }): boolean {
+    if (isAdmin) return true
+    if (activity.type !== 'comment') return false
     return activity.user_id === profile?.id
   }
 
@@ -83,15 +99,16 @@ export function LeadTimeline({ activities, stages, onRefresh }: LeadTimelineProp
     onRefresh()
   }
 
-  /** Delete a comment */
-  async function deleteComment(activityId: string) {
+  /** Șterge o înregistrare din timeline — comentariu sau (doar admin)
+      orice alt tip de eveniment. */
+  async function deleteActivity(activity: LeadActivity) {
     await supabase
       .from('lead_activities')
       .delete()
-      .eq('id', activityId)
+      .eq('id', activity.id)
 
     setDeletingId(null)
-    toast({ title: 'Comentariu șters', variant: 'warning' })
+    toast({ title: activity.type === 'comment' ? 'Comentariu șters' : 'Înregistrare ștearsă', variant: 'warning' })
     onRefresh()
   }
 
@@ -104,7 +121,8 @@ export function LeadTimeline({ activities, stages, onRefresh }: LeadTimelineProp
           const ActivityIcon = cfg.icon
           const isEditing = editingId === activity.id
           const isDeleting = deletingId === activity.id
-          const modifiable = canModify(activity)
+          const editable = canEdit(activity)
+          const deletable = canDelete(activity)
 
           return (
             <div key={activity.id} className="flex gap-3 py-3 border-b border-slate-50 dark:border-slate-800 last:border-0 group">
@@ -126,18 +144,22 @@ export function LeadTimeline({ activities, stages, onRefresh }: LeadTimelineProp
                       hover pe touch, deci un admin de pe telefon n-ar putea niciodată
                       să le atingă); pe desktop rămân ascunse până la hover pe rând,
                       ca să nu aglomereze vizual timeline-ul. */}
-                  {modifiable && !isEditing && !isDeleting && (
+                  {(editable || deletable) && !isEditing && !isDeleting && (
                     <div className="ml-auto flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => startEdit(activity)}
-                        className="p-1.5 sm:p-1 rounded text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950"
-                        title="Editează comentariu">
-                        <Pencil size={12} />
-                      </button>
-                      <button onClick={() => setDeletingId(activity.id)}
-                        className="p-1.5 sm:p-1 rounded text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950"
-                        title="Șterge comentariu">
-                        <Trash2 size={12} />
-                      </button>
+                      {editable && (
+                        <button onClick={() => startEdit(activity)}
+                          className="p-1.5 sm:p-1 rounded text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950"
+                          title="Editează comentariu">
+                          <Pencil size={12} />
+                        </button>
+                      )}
+                      {deletable && (
+                        <button onClick={() => setDeletingId(activity.id)}
+                          className="p-1.5 sm:p-1 rounded text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950"
+                          title={activity.type === 'comment' ? 'Șterge comentariu' : 'Șterge înregistrare'}>
+                          <Trash2 size={12} />
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -181,8 +203,10 @@ export function LeadTimeline({ activities, stages, onRefresh }: LeadTimelineProp
                 ) : isDeleting ? (
                   /* Delete confirmation inline */
                   <div className="mt-1.5 flex items-center gap-2 text-xs">
-                    <span className="text-red-600 dark:text-red-400">Ștergi acest comentariu?</span>
-                    <button onClick={() => deleteComment(activity.id)}
+                    <span className="text-red-600 dark:text-red-400">
+                      {activity.type === 'comment' ? 'Ștergi acest comentariu?' : 'Ștergi această înregistrare din timeline?'}
+                    </span>
+                    <button onClick={() => deleteActivity(activity)}
                       className="px-2 py-1 font-medium bg-red-600 text-white rounded hover:bg-red-700 transition-colors">
                       Da, șterge
                     </button>
