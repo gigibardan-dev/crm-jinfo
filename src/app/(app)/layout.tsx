@@ -10,12 +10,15 @@
  * - ToastProvider (notification feedback)
  * - MobileNavProvider (stare deschis/închis pentru sertarul de nav pe mobil)
  * - Sidebar (left navigation — sertar pe mobil, fix pe desktop de la `lg`)
+ * - InstallBanner (banner PWA „instalează aplicația", doar pe pagini
+ *   autentificate — vezi src/components/pwa/InstallBanner.tsx)
  */
 
 import { AuthProvider } from '@/lib/hooks/useAuth'
 import { ToastProvider } from '@/components/ui/Toast'
 import { MobileNavProvider } from '@/lib/hooks/useMobileNav'
 import { Sidebar } from '@/components/layout/Sidebar'
+import { InstallBanner } from '@/components/pwa/InstallBanner'
 
 export default function AppLayout({
   children,
@@ -31,6 +34,7 @@ export default function AppLayout({
             <main className="lg:ml-60">
               {children}
             </main>
+            <InstallBanner />
           </div>
         </MobileNavProvider>
       </ToastProvider>
