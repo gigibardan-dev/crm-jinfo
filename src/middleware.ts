@@ -87,9 +87,16 @@ export const config = {
      * Match all request paths except:
      * - _next/static (static files)
      * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public folder
+     * - favicon.ico, site.webmanifest, sw.js — fișiere PWA la rădăcina
+     *   /public (vezi public/site.webmanifest + public/sw.js). Fără
+     *   excluderea asta, cererea trecea prin auth-ul din middleware ca
+     *   orice altă rută și, dacă fetch-ul browserului pt. manifest/SW nu
+     *   ajungea cu cookie-ul de sesiune, primea redirect 307 spre /login —
+     *   pagina HTML de login, nu JSON, ceea ce dădea exact eroarea din
+     *   consolă: „Manifest: Line 1, column 1, Syntax error" (browserul
+     *   încerca să parseze HTML-ul redirectului ca JSON)
+     * - restul fișierelor din /public cu extensii de imagine/icon comune
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon\\.ico|site\\.webmanifest|sw\\.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|webmanifest)$).*)',
   ],
 }
