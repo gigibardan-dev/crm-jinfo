@@ -25,6 +25,7 @@ import type { NewUserFormData } from '@/components/settings/NewUserForm'
 import { PipelineStagesSection } from '@/components/settings/PipelineStagesSection'
 import { LeadSourcesSection } from '@/components/settings/LeadSourcesSection'
 import { AutoAssignPanel } from '@/components/dashboard/AutoAssignPanel'
+import { EmailTestSection } from '@/components/settings/EmailTestSection'
 
 export default function SettingsPage() {
   const { isAdmin } = useAuth()
@@ -149,6 +150,8 @@ export default function SettingsPage() {
         {/* Oglindă a panoului de pe Dashboard — aceeași componentă,
             self-gated admin/manager intern. Vezi AutoAssignPanel + migrarea 005. */}
         <AutoAssignPanel />
+
+        <EmailTestSection />
       </div>
     </>
   )

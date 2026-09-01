@@ -18,6 +18,7 @@ import type { Profile } from '@/lib/types/database'
 import { getInitials } from '@/lib/utils'
 import { TrendingUp, AlertTriangle, Clock, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
+import { OnlineAgentsCard } from '@/components/agents/OnlineAgentsCard'
 
 interface AgentStats {
   profile: Profile
@@ -145,6 +146,10 @@ export default function AgentsPage() {
             ))}
           </div>
         )}
+
+        <div className="mt-8">
+          <OnlineAgentsCard />
+        </div>
       </div>
     </>
   )
