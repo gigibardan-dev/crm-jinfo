@@ -33,8 +33,8 @@ export function LostReasonModal({ lostReason, onLostReasonChange, lostReasonCust
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="bg-white dark:bg-slate-900 rounded-xl shadow-xl w-full max-w-md p-6 mx-4 border border-slate-200 dark:border-slate-700">
-        <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-1">Motiv pierdere</h3>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">Selectează motivul pentru care lead-ul a fost pierdut.</p>
+        <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-1">Fără succes</h3>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">Selectează motivul pentru care lead-ul nu s-a finalizat cu succes.</p>
         <div className="space-y-2 mb-4">
           {LOST_REASONS.map((reason) => (
             <label key={reason} className="flex items-center gap-2 cursor-pointer">
@@ -52,7 +52,7 @@ export function LostReasonModal({ lostReason, onLostReasonChange, lostReasonCust
           <button disabled={!lostReason || (lostReason === 'Altul' && !lostReasonCustom)}
             onClick={onConfirm}
             className="px-4 py-2 text-sm font-medium bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors">
-            Marchează ca Pierdut
+            Marchează ca Fără Succes
           </button>
         </div>
       </div>

@@ -4,7 +4,7 @@
  * AgentStatsPanel
  *
  * Coloana dreaptă din pagina de detaliu agent: cardul de statistici
- * (leaduri active, câștigate, pierdute, total, rată conversie) și cardul
+ * (leaduri active, câștigate, fără succes, total, rată conversie) și cardul
  * de detalii cont (dată creare, status activ/inactiv). Pur prezentațională.
  * Extras din src/app/(app)/agents/[id]/page.tsx — comportament identic.
  */
@@ -42,7 +42,7 @@ export function AgentStatsPanel({ stats, agent }: AgentStatsPanelProps) {
             <span className="text-lg font-semibold text-green-600">{stats.won}</span>
           </div>
           <div className="flex items-center justify-between">
-            <span className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400"><AlertTriangle size={15} /> Pierdute</span>
+            <span className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400"><AlertTriangle size={15} /> Fără Succes</span>
             <span className="text-lg font-semibold text-red-500">{stats.lost}</span>
           </div>
           <div className="h-px bg-slate-100 dark:bg-slate-800" />

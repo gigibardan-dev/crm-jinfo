@@ -18,7 +18,7 @@
  * - Distribuție curentă pe etape de pipeline (bar chart, rampă ordinală)
  * - Performanță per agent (bar chart + tabel detaliat)
  * - Performanță per sursă (bar chart + tabel detaliat)
- * - Motive de pierdere (bar chart)
+ * - Motive „Fără Succes” (bar chart)
  * - Export CSV al lead-urilor din selecția curentă
  *
  * Toate agregările sunt funcții pure din src/lib/utils/reports.ts, rulate
@@ -222,7 +222,7 @@ export default function ReportsPage() {
           <TrendAreaChart points={trend.map((t) => ({ label: t.label, value: t.count }))} />
         </div>
 
-        {/* Pipeline + Motive pierdere */}
+        {/* Pipeline + Motive „Fără Succes” */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-4 sm:p-5">
             <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-4">Distribuție pe Etape de Pipeline</h3>
@@ -231,10 +231,10 @@ export default function ReportsPage() {
             />
           </div>
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-4 sm:p-5">
-            <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-4">Motive de Pierdere</h3>
+            <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-4">Motive „Fără Succes”</h3>
             <HBarChart
               data={lostReasons.map((r) => ({ key: r.reason, label: r.reason, value: r.count }))}
-              emptyMessage="Niciun lead pierdut în intervalul selectat."
+              emptyMessage="Niciun lead fără succes în intervalul selectat."
             />
           </div>
         </div>

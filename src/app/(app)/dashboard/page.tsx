@@ -9,7 +9,7 @@
  * - Admin/Manager: vede toate KPI-urile + alerte leaduri nealocate
  * - Agent: vede doar leadurile proprii + remindere
  * 
- * Carduri: Leaduri noi, Alocate, În lucru, Câștigate, Pierdute, Remindere
+ * Carduri: Leaduri noi, Alocate, În lucru, Câștigate, Fără Succes, Remindere
  * Alertă: Leaduri nealocate (admin/manager) + Remindere scadente
  */
 
@@ -92,7 +92,7 @@ export default function DashboardPage() {
     { label: 'Alocate', value: stats.totalAssigned, icon: Users, color: 'text-indigo-600 dark:text-indigo-400', bg: 'bg-indigo-50 dark:bg-indigo-950', href: '/leads?status=assigned', show: true },
     { label: 'În Lucru', value: stats.totalInProgress, icon: Clock, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950', href: '/leads?status=in_progress', show: true },
     { label: 'Câștigate', value: stats.totalWon, icon: TrendingUp, color: 'text-green-600 dark:text-green-400', bg: 'bg-green-50 dark:bg-green-950', href: '/leads?status=won', show: true },
-    { label: 'Pierdute', value: stats.totalLost, icon: AlertTriangle, color: 'text-red-500 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-950', href: '/leads?status=lost', show: isAdminOrManager },
+    { label: 'Fără Succes', value: stats.totalLost, icon: AlertTriangle, color: 'text-red-500 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-950', href: '/leads?status=lost', show: isAdminOrManager },
     { label: 'Remindere Azi', value: stats.todayReminders, icon: CheckCircle2, color: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-50 dark:bg-orange-950', href: '/leads?reminders=due', show: true },
   ]
 

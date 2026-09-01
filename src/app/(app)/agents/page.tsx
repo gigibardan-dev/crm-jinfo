@@ -7,7 +7,7 @@
  *
  * Grid de carduri, unul per agent/manager activ, cu inițiale, rol,
  * indicator de încărcare (verde/galben/roșu după nr. leaduri active) și
- * mini-statistici (active/câștigate/pierdute). Click → /agents/[id].
+ * mini-statistici (active/câștigate/fără succes). Click → /agents/[id].
  */
 
 import { useEffect, useState } from 'react'
@@ -139,7 +139,7 @@ export default function AgentsPage() {
                       <AlertTriangle size={12} className="text-red-500" />
                     </div>
                     <p className="text-lg font-semibold text-red-500">{stat.lostLeads}</p>
-                    <p className="text-[10px] text-slate-400 uppercase">Pierdute</p>
+                    <p className="text-[10px] text-slate-400 uppercase">Fără Succes</p>
                   </div>
                 </div>
               </Link>

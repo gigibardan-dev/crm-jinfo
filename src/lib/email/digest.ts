@@ -135,7 +135,7 @@ function agentSectionsHtml(data: AgentDigestData): string {
 
   const closedRows = [
     ...data.wonLast24h.map((l) => leadRow(l, '✓ câștigat')),
-    ...data.lostLast24h.map((l) => leadRow(l, '✕ pierdut')),
+    ...data.lostLast24h.map((l) => leadRow(l, '✕ fără succes')),
   ]
   parts.push(section(
     `Finalizate ieri (${data.wonLast24h.length + data.lostLast24h.length})`,
@@ -155,7 +155,7 @@ function agentDigestText(agentName: string, data: AgentDigestData): string {
     ``,
     `Leaduri noi: ${data.newLeads.length}`,
     `Leaduri critice (>96h fără interacțiune): ${data.criticalStagnant.length}`,
-    `Finalizate ieri: ${data.wonLast24h.length} câștigate, ${data.lostLast24h.length} pierdute`,
+    `Finalizate ieri: ${data.wonLast24h.length} câștigate, ${data.lostLast24h.length} fără succes`,
     `Total leaduri active: ${data.activeCount}`,
   ]
   return lines.join('\n')
@@ -204,7 +204,7 @@ function teamSectionHtml(data: TeamDigestData): string {
 
   parts.push(section(
     'Finalizate ieri',
-    `<p style="margin:0;font-size:13px;color:#0f172a">${data.wonLast24hCount} câștigate (${formatEur(data.wonLast24hValueEur)}) · ${data.lostLast24hCount} pierdute</p>`
+    `<p style="margin:0;font-size:13px;color:#0f172a">${data.wonLast24hCount} câștigate (${formatEur(data.wonLast24hValueEur)}) · ${data.lostLast24hCount} fără succes</p>`
   ))
 
   parts.push(section(
@@ -245,7 +245,7 @@ function teamDigestText(data: TeamDigestData): string {
     `Leaduri noi: ${data.newLeadsCount} (${data.unassignedCount} nealocate)`,
     `Active: ${data.activeCount}`,
     `Critice (>96h): ${data.criticalStagnant.length}`,
-    `Finalizate ieri: ${data.wonLast24hCount} câștigate (${formatEur(data.wonLast24hValueEur)}), ${data.lostLast24hCount} pierdute`,
+    `Finalizate ieri: ${data.wonLast24hCount} câștigate (${formatEur(data.wonLast24hValueEur)}), ${data.lostLast24hCount} fără succes`,
   ].join('\n')
 }
 
