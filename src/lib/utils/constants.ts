@@ -61,7 +61,7 @@ export const PRIORITY_CONFIG = {
 // Statusuri considerate „în lucru" — folosit pe Dashboard (card „În Lucru") și
 // pe pagina Pipeline (filtrul de status „În lucru", pentru link-ul din Dashboard)
 export const IN_PROGRESS_STATUSES = [
-  'contacted', 'quote_sent', 'follow_up', 'quote_accepted', 'booking_pending', 'payment_received', 'confirmed',
+  'contacted', 'no_response', 'quote_sent', 'follow_up', 'quote_accepted', 'booking_pending', 'payment_received', 'confirmed',
 ] as const
 
 // Statusuri finale (is_terminal=true în pipeline_stages) — excluse din
