@@ -4,15 +4,18 @@
  * UsersSection
  *
  * Secțiunea „Utilizatori” din /settings: header cu buton „Cont Nou” (afișează
- * NewUserForm), și lista de utilizatori cu rol + toggle activ/inactiv.
- * Mutațiile (creare, toggle activ) rămân în pagina părinte.
+ * NewUserForm), și lista de utilizatori cu rol + toggle activ/inactiv +
+ * toggle digest zilnic (receives_digest, migrarea 010 — DOAR adminul poate
+ * schimba asta pt. alt user, nu e self-service, spre deosebire de
+ * available_for_autoassign din AutoAssignPanel).
+ * Mutațiile (creare, toggle activ, toggle digest) rămân în pagina părinte.
  * Extras din src/app/(app)/settings/page.tsx — comportament identic.
  */
 
 'use client'
 
 import Link from 'next/link'
-import { UserPlus, Shield } from 'lucide-react'
+import { UserPlus, Shield, Mail } from 'lucide-react'
 import type { Profile } from '@/lib/types/database'
 import { getInitials } from '@/lib/utils'
 import { NewUserForm, type NewUserFormData } from '@/components/settings/NewUserForm'
@@ -29,11 +32,12 @@ interface UsersSectionProps {
   showPassword: boolean
   onToggleShowPassword: () => void
   onToggleUserActive: (userId: string, currentActive: boolean) => void
+  onToggleUserDigest: (userId: string, currentReceivesDigest: boolean) => void
 }
 
 export function UsersSection({
   users, showNewUser, onToggleNewUser, newUser, onNewUserChange, onCreateUser, creating, createError,
-  showPassword, onToggleShowPassword, onToggleUserActive,
+  showPassword, onToggleShowPassword, onToggleUserActive, onToggleUserDigest,
 }: UsersSectionProps) {
   return (
     <section>
@@ -75,6 +79,19 @@ export function UsersSection({
             <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded capitalize shrink-0">
               <Shield size={10} /> {user.role}
             </span>
+
+            {/* Digest zilnic toggle — DOAR adminul îl schimbă (pt. alt user), nu e self-service. */}
+            <button
+              onClick={() => onToggleUserDigest(user.id, user.receives_digest)}
+              className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded transition-colors ${
+                user.receives_digest
+                  ? 'text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950 hover:bg-blue-100 dark:hover:bg-blue-900'
+                  : 'text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700'
+              }`}
+              title={user.receives_digest ? 'Primește digestul zilnic — click pentru a-l opri' : 'NU primește digestul zilnic — click pentru a-l porni'}
+            >
+              <Mail size={11} /> {user.receives_digest ? 'Digest' : 'Fără digest'}
+            </button>
 
             {/* Active/Inactive toggle */}
             <button

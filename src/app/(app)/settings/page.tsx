@@ -115,6 +115,25 @@ export default function SettingsPage() {
     }
   }
 
+  /** Toggle digest zilnic pentru un user (migrarea 010) — doar admin, nu e self-service. */
+  async function toggleUserDigest(userId: string, currentReceivesDigest: boolean) {
+    const res = await fetch(`/api/users/${userId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ receives_digest: !currentReceivesDigest }),
+    })
+
+    if (res.ok) {
+      setUsers((prev) => prev.map((u) =>
+        u.id === userId ? { ...u, receives_digest: !currentReceivesDigest } : u
+      ))
+      toast({
+        title: !currentReceivesDigest ? 'Digest zilnic activat' : 'Digest zilnic oprit pentru acest user',
+        variant: !currentReceivesDigest ? 'success' : 'warning',
+      })
+    }
+  }
+
   // Guard: admin only
   if (!isAdmin) {
     return (
@@ -141,6 +160,7 @@ export default function SettingsPage() {
           showPassword={showPassword}
           onToggleShowPassword={() => setShowPassword(!showPassword)}
           onToggleUserActive={toggleUserActive}
+          onToggleUserDigest={toggleUserDigest}
         />
 
         <PipelineStagesSection stages={stages} />

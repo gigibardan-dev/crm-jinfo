@@ -18,6 +18,12 @@
  * individuală mai e verificată o dată în sendNotificationMail() (mod
  * testare inclus) — dublă plasă de siguranță, intenționat.
  *
+ * Excludere per-user: `profiles.receives_digest` (migrarea 010) — setabilă
+ * DOAR de admin, din Setări → Utilizatori (nu e self-service). Userii
+ * excluși apar în răspuns cu `reason: 'opted_out'`, dar tot contează la
+ * imaginea de ansamblu a echipei (digestul de manager/admin) — excluderea
+ * afectează doar dacă persoana respectivă primește PROPRIUL ei digest.
+ *
  * Conținut (vezi src/lib/email/digest.ts pt. construirea HTML-ului):
  * - Agent: TOATE leadurile proprii deschise, grupate pe etapa curentă din
  *   pipeline (ordinea din `pipeline_stages.display_order`) — nu doar un
@@ -190,7 +196,7 @@ async function handleDigest(request: NextRequest) {
   const cutoff = new Date(Date.now() - 24 * 3_600_000)
 
   const [{ data: profiles }, { data: activeLeads }, { data: closedLeads }, { data: stages }] = await Promise.all([
-    supabase.from('profiles').select('id, full_name, email, role').eq('is_active', true),
+    supabase.from('profiles').select('id, full_name, email, role, receives_digest').eq('is_active', true),
     supabase
       .from('leads')
       .select('id, first_name, last_name, destination, status, assigned_to, created_at, last_interaction_at')
@@ -214,6 +220,14 @@ async function handleDigest(request: NextRequest) {
   const results: { profileId: string; role: string; sent: boolean; reason?: string; error?: string; redirectedTo?: string }[] = []
 
   for (const profile of allProfiles) {
+    // Excludere per-user, setată doar de admin din Setări → Utilizatori
+    // (migrarea 010) — nu afectează imaginea de ansamblu a echipei, doar
+    // trimiterea automată a digestului propriu.
+    if (profile.receives_digest === false) {
+      results.push({ profileId: profile.id, role: profile.role, sent: false, reason: 'opted_out' })
+      continue
+    }
+
     let email: DigestEmail
 
     if (profile.role === 'agent') {

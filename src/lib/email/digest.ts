@@ -30,9 +30,26 @@
  * `updated_at` (nu există un `won_at`/`lost_at` dedicat în schemă), deci un
  * lead redeschis și re-închis în aceeași zi ar apărea din nou — acceptabil,
  * foarte rar în practică.
+ *
+ * Fiecare lead din listă e link direct către /leads/{id} (crm.jinfotours.ro).
+ * Footerul diferă după cine citește: admin vede „poți opri din Setări"
+ * (adevărat doar pt. el — /settings e blocată pt. manager/agent), restul
+ * văd un text prietenos despre stagnare/reset — vezi constantele ADMIN_FOOTER
+ * și AGENT_FOOTER mai jos. Excluderea unui user din trimiterea automată
+ * (`profiles.receives_digest`, migrarea 010, doar admin o schimbă) e
+ * verificată în route.ts, nu aici — funcțiile astea rămân PURE.
  */
 
 import { formatEur } from '@/lib/utils/reports'
+
+// Domeniul e fix (nu se schimbă des) — evităm o variabilă de mediu nouă
+// doar pt. link-urile din mail. Dacă se schimbă vreodată domeniul, se
+// actualizează o singură dată aici.
+const APP_URL = 'https://crm.jinfotours.ro'
+
+function leadUrl(id: string): string {
+  return `${APP_URL}/leads/${id}`
+}
 
 export interface DigestLeadSummary {
   id: string
@@ -96,9 +113,13 @@ export interface DigestEmail {
 // Shell HTML comun
 // ============================================
 
+function leadLink(lead: DigestLeadSummary): string {
+  return `<a href="${leadUrl(lead.id)}" style="color:#0f172a;text-decoration:none;border-bottom:1px solid #cbd5e1">${lead.name}</a>`
+}
+
 function leadRow(lead: DigestLeadSummary, extra?: string): string {
   return `<tr>
-    <td style="padding:6px 0;color:#0f172a;font-size:13px">${lead.name}${lead.destination ? ` <span style="color:#94a3b8">— ${lead.destination}</span>` : ''}</td>
+    <td style="padding:6px 0;color:#0f172a;font-size:13px">${leadLink(lead)}${lead.destination ? ` <span style="color:#94a3b8">— ${lead.destination}</span>` : ''}</td>
     ${extra ? `<td style="padding:6px 0 6px 12px;text-align:right;font-size:12px;color:#64748b;white-space:nowrap">${extra}</td>` : ''}
   </tr>`
 }
@@ -108,7 +129,7 @@ function stageLeadRow(lead: StageLeadRow): string {
   const ageColor = lead.isCritical ? '#dc2626' : lead.isWarning ? '#d97706' : '#94a3b8'
   const ageWeight = lead.isCritical ? '700' : '400'
   return `<tr>
-    <td style="padding:6px 0;color:#0f172a;font-size:13px">${badge}${lead.name}${lead.destination ? ` <span style="color:#94a3b8">— ${lead.destination}</span>` : ''}</td>
+    <td style="padding:6px 0;color:#0f172a;font-size:13px">${badge}${leadLink(lead)}${lead.destination ? ` <span style="color:#94a3b8">— ${lead.destination}</span>` : ''}</td>
     <td style="padding:6px 0 6px 12px;text-align:right;font-size:12px;color:${ageColor};font-weight:${ageWeight};white-space:nowrap">de ${lead.hoursLabel}</td>
   </tr>`
 }
@@ -125,7 +146,21 @@ function emptyNote(text: string): string {
   return `<p style="margin:0;font-size:13px;color:#94a3b8">${text}</p>`
 }
 
-function shell(preheader: string, bodyHtml: string): string {
+// Footer diferit după cine citește mailul — vezi discuția din chat:
+// „Poți opri din Setări” e adevărat DOAR pt. admin (/settings e blocată
+// pt. manager/agent, verificat în cod). Pt. restul, un text prietenos care
+// explică ce înseamnă practic „stagnant” și cum se resetează, nu o
+// promisiune falsă de auto-dezabonare.
+const ADMIN_FOOTER_HTML = `<p style="margin:0;font-size:11px;color:#94a3b8">Poți opri aceste mailuri oricând din CRM → Setări → Control notificări email.</p>`
+const ADMIN_FOOTER_TEXT = `Poți opri aceste mailuri oricând din CRM → Setări → Control notificări email.`
+
+const AGENT_FOOTER_HTML = `<p style="margin:0;font-size:11px;color:#94a3b8">Aruncă o privire peste leadurile mai vechi de mai sus — un comentariu sau o schimbare de status îi arată clientului că ești pe fază și îți resetează contorul de inactivitate. Leadurile se închid prin unul din statusurile <strong>Câștigat</strong>, <strong>Fără Succes</strong> sau <strong>Necalificat</strong> — restul rămân „deschise” până le miști tu.</p>`
+const AGENT_FOOTER_TEXT = `Aruncă o privire peste leadurile mai vechi de mai sus — un comentariu sau o schimbare de status îi arată clientului că ești pe fază și îți resetează contorul de inactivitate. Leadurile se închid prin unul din statusurile Câștigat, Fără Succes sau Necalificat — restul rămân „deschise” până le miști tu.`
+
+const DISCLAIMER_HTML = `<p style="margin:6px 0 0;font-size:10px;color:#cbd5e1">Email trimis automat de sistemul CRM JinfoTours.</p>`
+const DISCLAIMER_TEXT = `Email trimis automat de sistemul CRM JinfoTours.`
+
+function shell(preheader: string, bodyHtml: string, footerHtml: string): string {
   return `
     <div style="font-family:system-ui,-apple-system,sans-serif;max-width:560px;margin:0 auto">
       <p style="display:none;max-height:0;overflow:hidden">${preheader}</p>
@@ -135,7 +170,8 @@ function shell(preheader: string, bodyHtml: string): string {
       </div>
       ${bodyHtml}
       <div style="margin-top:24px;padding-top:16px;border-top:1px solid #e2e8f0">
-        <p style="margin:0;font-size:11px;color:#94a3b8">Poți opri aceste mailuri oricând din CRM → Setări → Control notificări email.</p>
+        ${footerHtml}
+        ${DISCLAIMER_HTML}
       </div>
     </div>`
 }
@@ -191,6 +227,7 @@ function agentDigestText(agentName: string, data: AgentDigestData): string {
     lines.push(`${group.stageName} (${group.leads.length}):`)
     for (const lead of group.leads) {
       lines.push(`  ${lead.isNew ? '[NOU] ' : ''}${lead.name}${lead.destination ? ' — ' + lead.destination : ''} — de ${lead.hoursLabel}`)
+      lines.push(`    ${leadUrl(lead.id)}`)
     }
     lines.push(``)
   }
@@ -210,9 +247,10 @@ export function buildAgentDigestEmail(agentName: string, data: AgentDigestData):
     subject: `Digest zilnic — ${bits.join(', ')}`,
     html: shell(
       bits.join(', '),
-      `<p style="margin:0 0 20px;font-size:14px;color:#0f172a">Bună, ${agentName}. Iată leadurile tale deschise:</p>${agentSectionsHtml(data)}`
+      `<p style="margin:0 0 20px;font-size:14px;color:#0f172a">Bună, ${agentName}. Iată leadurile tale deschise:</p>${agentSectionsHtml(data)}`,
+      AGENT_FOOTER_HTML
     ),
-    text: agentDigestText(agentName, data),
+    text: `${agentDigestText(agentName, data)}\n\n${AGENT_FOOTER_TEXT}\n${DISCLAIMER_TEXT}`,
   }
 }
 
@@ -297,12 +335,21 @@ export function buildTeamDigestEmail(data: TeamDigestData, personalSection?: { a
     ? `<p style="margin:0 0 20px;font-size:14px;color:#0f172a">Bună, ${personalSection.agentName}. Mai jos, leadurile tale, apoi imaginea de ansamblu a echipei:</p>${agentSectionsHtml(personalSection.data)}<div style="margin:0 0 20px;border-top:1px dashed #cbd5e1"></div>`
     : ''
 
+  // Prezența secțiunii personale = destinatarul e manager (vezi route.ts:
+  // doar managerul primește personalSection, adminul niciodată) — și doar
+  // adminul are acces la /settings, deci doar el vede „Poți opri din
+  // Setări”; managerul primește același text prietenos ca agentul.
+  const footerHtml = personalSection ? AGENT_FOOTER_HTML : ADMIN_FOOTER_HTML
+  const footerText = personalSection ? AGENT_FOOTER_TEXT : ADMIN_FOOTER_TEXT
+
   return {
     subject: `Digest zilnic echipă — ${data.newLeadsCount} leaduri noi, ${data.criticalStagnant.length} critice`,
     html: shell(
       `${data.newLeadsCount} leaduri noi, ${data.activeCount} active, ${data.criticalStagnant.length} critice`,
-      `${personalHtml}${teamSectionHtml(data)}`
+      `${personalHtml}${teamSectionHtml(data)}`,
+      footerHtml
     ),
-    text: (personalSection ? agentDigestText(personalSection.agentName, personalSection.data) + '\n\n' : '') + teamDigestText(data),
+    text: (personalSection ? agentDigestText(personalSection.agentName, personalSection.data) + '\n\n' : '')
+      + teamDigestText(data) + `\n\n${footerText}\n${DISCLAIMER_TEXT}`,
   }
 }

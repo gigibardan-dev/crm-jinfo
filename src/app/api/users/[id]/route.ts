@@ -6,8 +6,9 @@
  * Verifică sesiunea + rolul curent (trebuie admin). Actualizează selectiv,
  * prin service-role client: email/parolă în Supabase Auth (doar dacă
  * trimise), și câmpurile din `profiles` (full_name, email, phone, role,
- * is_active) — folosit atât din pagina de profil agent (editare completă),
- * cât și din /settings (toggle rapid activ/inactiv).
+ * is_active, receives_digest) — folosit atât din pagina de profil agent
+ * (editare completă), cât și din /settings (toggle rapid activ/inactiv,
+ * toggle rapid digest zilnic — vezi migrarea 010).
  *
  * Disponibilitatea round-robin (`available_for_autoassign`) a ALTUI user
  * NU se editează de aici — vezi /api/users/[id]/autoassign, endpoint
@@ -44,7 +45,7 @@ export async function PATCH(
   }
 
   const body = await request.json()
-  const { full_name, email, phone, role, password, is_active } = body
+  const { full_name, email, phone, role, password, is_active, receives_digest } = body
 
   const adminClient = createAdminClient()
 
@@ -75,6 +76,7 @@ export async function PATCH(
   if (phone !== undefined) profileUpdate.phone = phone || null
   if (role !== undefined) profileUpdate.role = role
   if (is_active !== undefined) profileUpdate.is_active = is_active
+  if (receives_digest !== undefined) profileUpdate.receives_digest = receives_digest
 
   if (Object.keys(profileUpdate).length > 0) {
     const { error: profileError } = await adminClient

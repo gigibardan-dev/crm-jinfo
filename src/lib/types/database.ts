@@ -35,6 +35,7 @@ export type Database = {
           avatar_url: string | null
           is_active: boolean
           available_for_autoassign: boolean
+          receives_digest: boolean
           created_at: string
           updated_at: string
         }
@@ -47,6 +48,7 @@ export type Database = {
           avatar_url?: string | null
           is_active?: boolean
           available_for_autoassign?: boolean
+          receives_digest?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -59,6 +61,7 @@ export type Database = {
           avatar_url?: string | null
           is_active?: boolean
           available_for_autoassign?: boolean
+          receives_digest?: boolean
           updated_at?: string
         }
         Relationships: []
