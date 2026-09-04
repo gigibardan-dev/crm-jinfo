@@ -50,3 +50,21 @@ export function getStagnantInfo(status: string, lastInteractionAt: string | null
 export function stagnantThresholdIso(): string {
   return new Date(Date.now() - STAGNANT_THRESHOLD_HOURS * 3_600_000).toISOString()
 }
+
+export interface InteractionAge {
+  /** Ore de la ultima interacțiune reală. */
+  hours: number
+  /** Durată lizibilă în română, ex: "3 zile", "5 ore". */
+  label: string
+}
+
+/**
+ * Vârsta interacțiunii, NECONDIȚIONATĂ de pragul de stagnare (spre
+ * deosebire de getStagnantInfo, care întoarce null sub prag) — folosită de
+ * digestul zilnic (src/lib/email/digest.ts) ca să arate „de cât timp" pe
+ * FIECARE lead activ dintr-o listă completă, nu doar pe cele stagnante.
+ */
+export function getInteractionAge(lastInteractionAt: string): InteractionAge {
+  const hours = (Date.now() - new Date(lastInteractionAt).getTime()) / 3_600_000
+  return { hours, label: formatDistanceToNow(new Date(lastInteractionAt), { locale: ro }) }
+}

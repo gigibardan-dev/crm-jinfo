@@ -4,15 +4,20 @@
  * Digest zilnic — construirea conținutului (HTML/text) pt. cele două
  * tipuri de mail trimise de src/app/api/cron/daily-digest/route.ts:
  *
- * - Digest agent (rol `agent`): DOAR leadurile lui — noi de ieri, active,
- *   critice (stagnante >96h — vezi STAGNANT_CRITICAL_HOURS), câștigate/
- *   pierdute de ieri.
+ * - Digest agent (rol `agent`): TOATE leadurile lui deschise (active),
+ *   grupate pe etapa curentă din pipeline — nu doar un rezumat. Fiecare
+ *   lead arată de cât timp n-a mai avut interacțiune, colorat (roșu ≥96h —
+ *   STAGNANT_CRITICAL_HOURS, portocaliu ≥48h — STAGNANT_THRESHOLD_HOURS),
+ *   plus un marcaj „🆕" pt. cele nou-asignate în ultimele 24h. Sub grupe,
+ *   ce s-a finalizat ieri (câștigat/fără succes).
  * - Digest echipă (rol `admin`/`manager`): imagine de ansamblu — leaduri
- *   noi/nealocate, pipeline activ, câștigate/pierdute de ieri (valoare
+ *   noi/nealocate, pipeline activ, câștigate/fără succes de ieri (valoare
  *   inclusă), toate leadurile critice (cu agentul lor), un rând per agent
  *   (activ/critic/nou). Manager, spre deosebire de admin, poate avea și
  *   leaduri proprii (e în pool-ul de round-robin) — digestul lui include
- *   ȘI secțiunea personală, ca la agent, înaintea imaginii de ansamblu.
+ *   ȘI secțiunea personală (grupată pe etapă, ca la agent), înaintea
+ *   imaginii de ansamblu. Rămâne neschimbat față de agent — vezi discuția
+ *   din chat, urmează să fie rafinat separat.
  *
  * Funcțiile de-aici sunt PURE — iau date deja agregate din route.ts (care
  * face query-urile Supabase) și întorc { subject, html, text }. Stilul
@@ -20,11 +25,11 @@
  * clienți de mail, în același spirit ca template-ul din
  * /api/email/test (system-ui, paleta slate).
  *
- * Data „de ieri" = ultimele 24h de la ora rulării — aproximare rezonabilă
- * pt. un digest zilnic (nu ținem un timestamp „ultima rulare”); pt.
- * câștigat/pierdut folosim `updated_at` (nu există un `won_at`/`lost_at`
- * dedicat în schemă), deci un lead redeschis și re-închis în aceeași zi ar
- * apărea din nou — acceptabil, foarte rar în practică.
+ * Data „de ieri" = ultimele 24h de la ora rulării (aproximare rezonabilă,
+ * nu ținem un timestamp „ultima rulare"); pt. câștigat/fără succes folosim
+ * `updated_at` (nu există un `won_at`/`lost_at` dedicat în schemă), deci un
+ * lead redeschis și re-închis în aceeași zi ar apărea din nou — acceptabil,
+ * foarte rar în practică.
  */
 
 import { formatEur } from '@/lib/utils/reports'
@@ -40,11 +45,25 @@ export interface CriticalLeadSummary extends DigestLeadSummary {
   agentName?: string | null
 }
 
+export interface StageLeadRow extends DigestLeadSummary {
+  hoursLabel: string
+  isNew: boolean
+  isCritical: boolean
+  isWarning: boolean
+}
+
+export interface StageGroup {
+  stageName: string
+  leads: StageLeadRow[]
+}
+
 export interface AgentDigestData {
-  newLeads: DigestLeadSummary[]
+  /** Toate leadurile active ale agentului, grupate pe etapă (ordinea pipeline-ului), etapele fără leaduri fiind omise. */
+  stageGroups: StageGroup[]
   activeCount: number
-  criticalStagnant: CriticalLeadSummary[]
-  warningStagnantCount: number
+  newCount: number
+  criticalCount: number
+  warningCount: number
   wonLast24h: DigestLeadSummary[]
   lostLast24h: DigestLeadSummary[]
 }
@@ -84,6 +103,16 @@ function leadRow(lead: DigestLeadSummary, extra?: string): string {
   </tr>`
 }
 
+function stageLeadRow(lead: StageLeadRow): string {
+  const badge = lead.isNew ? '<span style="color:#2563eb;font-weight:600">🆕 </span>' : ''
+  const ageColor = lead.isCritical ? '#dc2626' : lead.isWarning ? '#d97706' : '#94a3b8'
+  const ageWeight = lead.isCritical ? '700' : '400'
+  return `<tr>
+    <td style="padding:6px 0;color:#0f172a;font-size:13px">${badge}${lead.name}${lead.destination ? ` <span style="color:#94a3b8">— ${lead.destination}</span>` : ''}</td>
+    <td style="padding:6px 0 6px 12px;text-align:right;font-size:12px;color:${ageColor};font-weight:${ageWeight};white-space:nowrap">de ${lead.hoursLabel}</td>
+  </tr>`
+}
+
 function section(title: string, innerHtml: string, accentColor = '#2563eb'): string {
   return `
     <div style="margin:0 0 20px">
@@ -118,56 +147,70 @@ function shell(preheader: string, bodyHtml: string): string {
 function agentSectionsHtml(data: AgentDigestData): string {
   const parts: string[] = []
 
-  parts.push(section(
-    `Leaduri noi (${data.newLeads.length})`,
-    data.newLeads.length > 0
-      ? `<table style="width:100%;border-collapse:collapse">${data.newLeads.map((l) => leadRow(l)).join('')}</table>`
-      : emptyNote('Niciun lead nou în ultimele 24h.')
-  ))
+  const summaryBits = [`<strong style="color:#0f172a">${data.activeCount}</strong> leaduri deschise`]
+  if (data.newCount > 0) summaryBits.push(`<span style="color:#2563eb">${data.newCount} noi</span>`)
+  if (data.criticalCount > 0) summaryBits.push(`<span style="color:#dc2626;font-weight:600">${data.criticalCount} critice (≥96h)</span>`)
+  if (data.warningCount > 0) summaryBits.push(`<span style="color:#d97706">${data.warningCount} de urmărit (≥48h)</span>`)
+  parts.push(`<p style="margin:0 0 20px;font-size:13px;color:#64748b">${summaryBits.join(' · ')}</p>`)
 
-  parts.push(section(
-    `Leaduri critice — fără interacțiune de peste ${96}h (${data.criticalStagnant.length})`,
-    data.criticalStagnant.length > 0
-      ? `<table style="width:100%;border-collapse:collapse">${data.criticalStagnant.map((l) => leadRow(l, `de ${l.hoursLabel}`)).join('')}</table>`
-      : emptyNote('Niciun lead critic — bravo!'),
-    '#dc2626'
-  ))
+  if (data.stageGroups.length === 0) {
+    parts.push(emptyNote('Niciun lead deschis momentan.'))
+  } else {
+    for (const group of data.stageGroups) {
+      parts.push(section(
+        `${group.stageName} (${group.leads.length})`,
+        `<table style="width:100%;border-collapse:collapse">${group.leads.map(stageLeadRow).join('')}</table>`
+      ))
+    }
+  }
 
   const closedRows = [
     ...data.wonLast24h.map((l) => leadRow(l, '✓ câștigat')),
     ...data.lostLast24h.map((l) => leadRow(l, '✕ fără succes')),
   ]
-  parts.push(section(
-    `Finalizate ieri (${data.wonLast24h.length + data.lostLast24h.length})`,
-    closedRows.length > 0
-      ? `<table style="width:100%;border-collapse:collapse">${closedRows.join('')}</table>`
-      : emptyNote('Niciun lead finalizat în ultimele 24h.')
-  ))
-
-  parts.push(`<p style="margin:0 0 20px;font-size:13px;color:#64748b">Total leaduri active în lucru: <strong style="color:#0f172a">${data.activeCount}</strong>${data.warningStagnantCount > 0 ? ` · <span style="color:#d97706">${data.warningStagnantCount} fără interacțiune de peste 48h</span>` : ''}</p>`)
+  if (closedRows.length > 0) {
+    parts.push(section(
+      `Finalizate ieri (${data.wonLast24h.length + data.lostLast24h.length})`,
+      `<table style="width:100%;border-collapse:collapse">${closedRows.join('')}</table>`
+    ))
+  }
 
   return parts.join('')
 }
 
 function agentDigestText(agentName: string, data: AgentDigestData): string {
-  const lines = [
-    `Digest zilnic JinfoTours CRM — ${agentName}`,
-    ``,
-    `Leaduri noi: ${data.newLeads.length}`,
-    `Leaduri critice (>96h fără interacțiune): ${data.criticalStagnant.length}`,
-    `Finalizate ieri: ${data.wonLast24h.length} câștigate, ${data.lostLast24h.length} fără succes`,
-    `Total leaduri active: ${data.activeCount}`,
-  ]
+  const lines = [`Digest zilnic JinfoTours CRM — ${agentName}`, ``]
+
+  const summaryBits = [`${data.activeCount} leaduri deschise`]
+  if (data.newCount > 0) summaryBits.push(`${data.newCount} noi`)
+  if (data.criticalCount > 0) summaryBits.push(`${data.criticalCount} critice (≥96h)`)
+  if (data.warningCount > 0) summaryBits.push(`${data.warningCount} de urmărit (≥48h)`)
+  lines.push(summaryBits.join(', '), ``)
+
+  for (const group of data.stageGroups) {
+    lines.push(`${group.stageName} (${group.leads.length}):`)
+    for (const lead of group.leads) {
+      lines.push(`  ${lead.isNew ? '[NOU] ' : ''}${lead.name}${lead.destination ? ' — ' + lead.destination : ''} — de ${lead.hoursLabel}`)
+    }
+    lines.push(``)
+  }
+
+  if (data.wonLast24h.length + data.lostLast24h.length > 0) {
+    lines.push(`Finalizate ieri: ${data.wonLast24h.length} câștigate, ${data.lostLast24h.length} fără succes`)
+  }
+
   return lines.join('\n')
 }
 
 export function buildAgentDigestEmail(agentName: string, data: AgentDigestData): DigestEmail {
-  const criticalNote = data.criticalStagnant.length > 0 ? ` — ${data.criticalStagnant.length} critice` : ''
+  const bits = [`${data.activeCount} leaduri deschise`]
+  if (data.criticalCount > 0) bits.push(`${data.criticalCount} critice`)
+
   return {
-    subject: `Digest zilnic — ${data.newLeads.length} leaduri noi${criticalNote}`,
+    subject: `Digest zilnic — ${bits.join(', ')}`,
     html: shell(
-      `${data.newLeads.length} leaduri noi, ${data.criticalStagnant.length} critice`,
-      `<p style="margin:0 0 20px;font-size:14px;color:#0f172a">Bună, ${agentName}. Iată rezumatul tău de azi:</p>${agentSectionsHtml(data)}`
+      bits.join(', '),
+      `<p style="margin:0 0 20px;font-size:14px;color:#0f172a">Bună, ${agentName}. Iată leadurile tale deschise:</p>${agentSectionsHtml(data)}`
     ),
     text: agentDigestText(agentName, data),
   }

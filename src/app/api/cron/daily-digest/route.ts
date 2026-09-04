@@ -19,8 +19,11 @@
  * testare inclus) — dublă plasă de siguranță, intenționat.
  *
  * Conținut (vezi src/lib/email/digest.ts pt. construirea HTML-ului):
- * - Agent: leadurile proprii — noi (ultimele 24h), critice (>96h fără
- *   interacțiune — STAGNANT_CRITICAL_HOURS), finalizate ieri.
+ * - Agent: TOATE leadurile proprii deschise, grupate pe etapa curentă din
+ *   pipeline (ordinea din `pipeline_stages.display_order`) — nu doar un
+ *   rezumat. Fiecare lead arată de cât timp n-a mai avut interacțiune,
+ *   marcat critic (≥96h — STAGNANT_CRITICAL_HOURS) sau de urmărit (≥48h —
+ *   STAGNANT_THRESHOLD_HOURS), plus finalizate ieri (câștigat/fără succes).
  * - Manager: secțiunea personală (ca la agent, poate avea leaduri proprii
  *   din round-robin) + imaginea de ansamblu a echipei.
  * - Admin: doar imaginea de ansamblu a echipei (nu e în pool-ul de
@@ -34,9 +37,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getEmailSettings } from '@/lib/email/emailSettings'
 import { sendNotificationMail } from '@/lib/email/sendMail'
-import { buildAgentDigestEmail, buildTeamDigestEmail, type AgentDigestData, type TeamDigestData, type DigestLeadSummary, type CriticalLeadSummary, type AgentPerfRow, type DigestEmail } from '@/lib/email/digest'
-import { getStagnantInfo } from '@/lib/utils/stagnantLeads'
-import { TERMINAL_STATUSES } from '@/lib/utils/constants'
+import { buildAgentDigestEmail, buildTeamDigestEmail, type AgentDigestData, type TeamDigestData, type DigestLeadSummary, type CriticalLeadSummary, type AgentPerfRow, type StageGroup, type StageLeadRow, type DigestEmail } from '@/lib/email/digest'
+import { getStagnantInfo, getInteractionAge } from '@/lib/utils/stagnantLeads'
+import { TERMINAL_STATUSES, STAGNANT_CRITICAL_HOURS, STAGNANT_THRESHOLD_HOURS } from '@/lib/utils/constants'
 import { fullName } from '@/lib/utils'
 
 interface DigestLeadRow {
@@ -60,30 +63,59 @@ interface ClosedLeadRow {
   won_value: number | null
 }
 
+interface StageMeta {
+  slug: string
+  name: string
+  is_terminal: boolean
+}
+
 function toSummary(lead: { id: string; first_name: string | null; last_name: string | null; destination: string | null }): DigestLeadSummary {
   return { id: lead.id, name: fullName(lead.first_name, lead.last_name) || 'Fără nume', destination: lead.destination }
 }
 
-function buildAgentData(agentId: string, cutoff: Date, activeLeads: DigestLeadRow[], closedLast24h: ClosedLeadRow[]): AgentDigestData {
+/**
+ * Leadurile deschise ale agentului, grupate pe etapa curentă (ordinea
+ * pipeline-ului) — etapele fără niciun lead sunt omise. Fiecare lead
+ * primește vârsta interacțiunii necondiționat (getInteractionAge, spre
+ * deosebire de getStagnantInfo folosit de buildTeamData mai jos, care
+ * întoarce null sub prag) — aici vrem „de cât timp" pe TOATE leadurile
+ * dintr-o listă completă, nu doar pe cele stagnante.
+ */
+function buildAgentData(agentId: string, cutoff: Date, activeLeads: DigestLeadRow[], closedLast24h: ClosedLeadRow[], stages: StageMeta[]): AgentDigestData {
   const mine = activeLeads.filter((l) => l.assigned_to === agentId)
-  const newLeads = mine.filter((l) => new Date(l.created_at) >= cutoff).map(toSummary)
 
-  const critical: CriticalLeadSummary[] = []
-  let warningStagnantCount = 0
-  for (const lead of mine) {
-    const info = getStagnantInfo(lead.status, lead.last_interaction_at)
-    if (!info) continue
-    if (info.isCritical) critical.push({ ...toSummary(lead), hoursLabel: info.label })
-    else warningStagnantCount++
-  }
+  let newCount = 0
+  let criticalCount = 0
+  let warningCount = 0
+
+  const stageGroups: StageGroup[] = stages
+    .filter((s) => !s.is_terminal)
+    .map((stage): StageGroup => {
+      const leads: StageLeadRow[] = mine
+        .filter((l) => l.status === stage.slug)
+        .map((lead): StageLeadRow => {
+          const age = getInteractionAge(lead.last_interaction_at)
+          const isNew = new Date(lead.created_at) >= cutoff
+          const isCritical = age.hours >= STAGNANT_CRITICAL_HOURS
+          const isWarning = !isCritical && age.hours >= STAGNANT_THRESHOLD_HOURS
+          if (isNew) newCount++
+          if (isCritical) criticalCount++
+          else if (isWarning) warningCount++
+          return { ...toSummary(lead), hoursLabel: age.label, isNew, isCritical, isWarning }
+        })
+        .sort((a, b) => (b.isCritical ? 1 : 0) - (a.isCritical ? 1 : 0) || (b.isWarning ? 1 : 0) - (a.isWarning ? 1 : 0))
+      return { stageName: stage.name, leads }
+    })
+    .filter((group) => group.leads.length > 0)
 
   const closedMine = closedLast24h.filter((l) => l.assigned_to === agentId)
 
   return {
-    newLeads,
+    stageGroups,
     activeCount: mine.length,
-    criticalStagnant: critical,
-    warningStagnantCount,
+    newCount,
+    criticalCount,
+    warningCount,
     wonLast24h: closedMine.filter((l) => l.status === 'won').map(toSummary),
     lostLast24h: closedMine.filter((l) => l.status === 'lost').map(toSummary),
   }
@@ -157,7 +189,7 @@ async function handleDigest(request: NextRequest) {
   const supabase = createAdminClient()
   const cutoff = new Date(Date.now() - 24 * 3_600_000)
 
-  const [{ data: profiles }, { data: activeLeads }, { data: closedLeads }] = await Promise.all([
+  const [{ data: profiles }, { data: activeLeads }, { data: closedLeads }, { data: stages }] = await Promise.all([
     supabase.from('profiles').select('id, full_name, email, role').eq('is_active', true),
     supabase
       .from('leads')
@@ -168,11 +200,13 @@ async function handleDigest(request: NextRequest) {
       .select('id, first_name, last_name, destination, status, assigned_to, won_value')
       .in('status', ['won', 'lost'])
       .gte('updated_at', cutoff.toISOString()),
+    supabase.from('pipeline_stages').select('slug, name, is_terminal').order('display_order'),
   ])
 
   const allProfiles = profiles || []
   const activeLeadRows = (activeLeads || []) as DigestLeadRow[]
   const closedLeadRows = (closedLeads || []) as ClosedLeadRow[]
+  const stageRows = (stages || []) as StageMeta[]
 
   const agentAndManagerProfiles = allProfiles.filter((p) => p.role === 'agent' || p.role === 'manager')
   const teamData = buildTeamData(cutoff, activeLeadRows, closedLeadRows, agentAndManagerProfiles)
@@ -183,10 +217,10 @@ async function handleDigest(request: NextRequest) {
     let email: DigestEmail
 
     if (profile.role === 'agent') {
-      const agentData = buildAgentData(profile.id, cutoff, activeLeadRows, closedLeadRows)
+      const agentData = buildAgentData(profile.id, cutoff, activeLeadRows, closedLeadRows, stageRows)
       email = buildAgentDigestEmail(profile.full_name, agentData)
     } else if (profile.role === 'manager') {
-      const agentData = buildAgentData(profile.id, cutoff, activeLeadRows, closedLeadRows)
+      const agentData = buildAgentData(profile.id, cutoff, activeLeadRows, closedLeadRows, stageRows)
       email = buildTeamDigestEmail(teamData, { agentName: profile.full_name, data: agentData })
     } else if (profile.role === 'admin') {
       email = buildTeamDigestEmail(teamData)
