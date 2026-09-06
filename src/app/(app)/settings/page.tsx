@@ -3,13 +3,24 @@
  *
  * Settings Page — Admin only
  *
- * Owner de state/date pentru cele trei secțiuni de setări. Markup-ul e
- * delegat componentelor din src/components/settings/*.
+ * Owner de state/date pentru toate secțiunile de setări. Markup-ul e
+ * delegat componentelor din src/components/settings/*. Organizate pe
+ * taburi (au tot crescut — 6 secțiuni pe-o singură pagină lungă înainte,
+ * vezi discuția din chat):
  *
- * Secțiuni:
- * - Utilizatori: creare cont nou, toggle activ/inactiv
- * - Pipeline Stages: vizualizare configurație
- * - Lead Sources: vizualizare surse cu Lucide icons
+ * - Utilizatori: conturi (creare, activ/inactiv, digest zilnic) + alocare
+ *   automată round-robin (ambele despre agenți/manageri și munca lor).
+ * - Pipeline: etape (Pipeline Stages) + surse de leaduri (Lead Sources) —
+ *   configurația fluxului de vânzare.
+ * - Email: status SMTP + test + control notificări automate.
+ * - Integrări: mapare formulare Facebook (Google Sheets) — loc pregătit
+ *   pt. viitoare integrări noi.
+ *
+ * Toate taburile rămân montate simultan (ascunse cu CSS, nu demontate) —
+ * fiecare secțiune își face propriul fetch o singură dată, la încărcarea
+ * paginii, nu de fiecare dată când adminul comută tabul (mai ales
+ * FacebookMappingSection, care citește live din Google Sheets — ar fi
+ * lent să repete asta la fiecare click pe tab).
  */
 
 'use client'
@@ -19,6 +30,7 @@ import { useAuth } from '@/lib/hooks/useAuth'
 import { useToast } from '@/components/ui/Toast'
 import { createClient } from '@/lib/supabase/client'
 import { Header } from '@/components/layout/Header'
+import { Users, Workflow, Mail, Plug } from 'lucide-react'
 import type { Profile, PipelineStage, LeadSource } from '@/lib/types/database'
 import { UsersSection } from '@/components/settings/UsersSection'
 import type { NewUserFormData } from '@/components/settings/NewUserForm'
@@ -27,6 +39,15 @@ import { LeadSourcesSection } from '@/components/settings/LeadSourcesSection'
 import { AutoAssignPanel } from '@/components/dashboard/AutoAssignPanel'
 import { EmailTestSection } from '@/components/settings/EmailTestSection'
 import { FacebookMappingSection } from '@/components/settings/FacebookMappingSection'
+
+const TABS = [
+  { key: 'utilizatori', label: 'Utilizatori', icon: Users },
+  { key: 'pipeline', label: 'Pipeline', icon: Workflow },
+  { key: 'email', label: 'Email', icon: Mail },
+  { key: 'integrari', label: 'Integrări', icon: Plug },
+] as const
+
+type TabKey = (typeof TABS)[number]['key']
 
 export default function SettingsPage() {
   const { isAdmin } = useAuth()
@@ -37,6 +58,7 @@ export default function SettingsPage() {
   const [stages, setStages] = useState<PipelineStage[]>([])
   const [sources, setSources] = useState<LeadSource[]>([])
   const [loading, setLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState<TabKey>('utilizatori')
 
   // --- New user form ---
   const [showNewUser, setShowNewUser] = useState(false)
@@ -148,33 +170,65 @@ export default function SettingsPage() {
   return (
     <>
       <Header title="Setări" />
-      <div className="p-4 sm:p-6 max-w-3xl space-y-8">
-        <UsersSection
-          users={users}
-          showNewUser={showNewUser}
-          onToggleNewUser={() => setShowNewUser(!showNewUser)}
-          newUser={newUser}
-          onNewUserChange={setNewUser}
-          onCreateUser={createUser}
-          creating={creating}
-          createError={createError}
-          showPassword={showPassword}
-          onToggleShowPassword={() => setShowPassword(!showPassword)}
-          onToggleUserActive={toggleUserActive}
-          onToggleUserDigest={toggleUserDigest}
-        />
+      <div className="p-4 sm:p-6 max-w-3xl">
+        <div className="flex gap-1 mb-6 border-b border-slate-200 dark:border-slate-700 overflow-x-auto">
+          {TABS.map((tab) => {
+            const Icon = tab.icon
+            const isActive = activeTab === tab.key
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setActiveTab(tab.key)}
+                aria-current={isActive}
+                className={`inline-flex items-center gap-1.5 px-3.5 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+                  isActive
+                    ? 'border-blue-600 text-blue-700 dark:text-blue-400'
+                    : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                }`}
+              >
+                <Icon size={15} />
+                {tab.label}
+              </button>
+            )
+          })}
+        </div>
 
-        <PipelineStagesSection stages={stages} />
+        {/* Toate taburile rămân montate (ascunse cu `hidden`, nu demontate) —
+            vezi nota din docblock-ul de sus. */}
+        <div className={activeTab === 'utilizatori' ? 'space-y-8' : 'hidden'}>
+          <UsersSection
+            users={users}
+            showNewUser={showNewUser}
+            onToggleNewUser={() => setShowNewUser(!showNewUser)}
+            newUser={newUser}
+            onNewUserChange={setNewUser}
+            onCreateUser={createUser}
+            creating={creating}
+            createError={createError}
+            showPassword={showPassword}
+            onToggleShowPassword={() => setShowPassword(!showPassword)}
+            onToggleUserActive={toggleUserActive}
+            onToggleUserDigest={toggleUserDigest}
+          />
 
-        <LeadSourcesSection sources={sources} />
+          {/* Oglindă a panoului de pe Dashboard — aceeași componentă,
+              self-gated admin/manager intern. Vezi AutoAssignPanel + migrarea 005. */}
+          <AutoAssignPanel />
+        </div>
 
-        {/* Oglindă a panoului de pe Dashboard — aceeași componentă,
-            self-gated admin/manager intern. Vezi AutoAssignPanel + migrarea 005. */}
-        <AutoAssignPanel />
+        <div className={activeTab === 'pipeline' ? 'space-y-8' : 'hidden'}>
+          <PipelineStagesSection stages={stages} />
+          <LeadSourcesSection sources={sources} />
+        </div>
 
-        <EmailTestSection />
+        <div className={activeTab === 'email' ? 'space-y-8' : 'hidden'}>
+          <EmailTestSection />
+        </div>
 
-        <FacebookMappingSection />
+        <div className={activeTab === 'integrari' ? 'space-y-8' : 'hidden'}>
+          <FacebookMappingSection />
+        </div>
       </div>
     </>
   )
