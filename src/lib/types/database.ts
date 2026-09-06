@@ -443,6 +443,41 @@ export type Database = {
           },
         ]
       }
+      facebook_form_field_mappings: {
+        Row: {
+          sheet_tab: string
+          full_name_header: string | null
+          email_header: string | null
+          phone_header: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          sheet_tab: string
+          full_name_header?: string | null
+          email_header?: string | null
+          phone_header?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          sheet_tab?: string
+          full_name_header?: string | null
+          email_header?: string | null
+          phone_header?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'facebook_form_field_mappings_updated_by_fkey'
+            columns: ['updated_by']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

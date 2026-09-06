@@ -50,8 +50,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { matchHeaders, parseImportRow, type ParsedImportRow } from '@/lib/leads/import-parse'
-import { mapFacebookRows, FacebookFormatError } from '@/lib/leads/import-facebook'
+import { mapFacebookRows, FacebookFormatError, type FieldMappingOverride } from '@/lib/leads/import-facebook'
 import { listSheetTitles, getAllSheetsValues, GoogleSheetsConfigError } from '@/lib/leads/google-sheets'
+import { getFacebookFieldMappings } from '@/lib/leads/facebookFieldMappings'
 import type { Database } from '@/lib/types/database'
 
 type NotificationInsert = Database['public']['Tables']['notifications']['Insert']
@@ -112,6 +113,11 @@ async function handleSync(request: NextRequest) {
 
   const defaultSourceSlug = sources.find((s) => s.slug === 'other')?.slug || facebookSource.slug
 
+  // Mapare manuală per filă (Setări → Mapare formulare Facebook, migrarea
+  // 011) — pt. formulare cu întrebări custom pe care recunoașterea automată
+  // din FIELD_ALIASES nu le prinde (ex: „nume_complet" în loc de FULL_NAME).
+  const fieldMappings = await getFacebookFieldMappings()
+
   const tabResults: TabSyncResult[] = []
   const allInsertedLeads: { id: string; first_name: string | null; last_name: string | null; destination: string | null; tab: string }[] = []
 
@@ -123,9 +129,14 @@ async function handleSync(request: NextRequest) {
       continue
     }
 
+    const tabMapping = fieldMappings[title]
+    const override: FieldMappingOverride | undefined = tabMapping
+      ? { full_name: tabMapping.fullNameHeader, email: tabMapping.emailHeader, phone: tabMapping.phoneHeader }
+      : undefined
+
     let mapped
     try {
-      mapped = mapFacebookRows(rawRows)
+      mapped = mapFacebookRows(rawRows, override)
     } catch (err) {
       tabResults.push({
         tab: title,

@@ -223,13 +223,42 @@ export function parseFacebookExport(buffer: Buffer, filename: string): FacebookP
   return mapFacebookRows(rawRows)
 }
 
+/** Cele 3 câmpuri de identitate pt. care Setări → Mapare formulare Facebook permite suprascriere manuală. */
+export type IdentityField = 'full_name' | 'email' | 'phone'
+
+/** Suprascriere manuală per formular: câmp → textul EXACT al header-ului din Sheet ales de admin (nu index — mai stabil dacă se schimbă ordinea coloanelor). undefined/null = las auto-detectarea să decidă. */
+export type FieldMappingOverride = Partial<Record<IdentityField, string | null | undefined>>
+
+/**
+ * Ce ar detecta automat (din FIELD_ALIASES) recunoașterea, PENTRU DOAR cele
+ * 3 câmpuri de identitate — folosită de ecranul de Setări ca să arate
+ * adminului ce s-a găsit deja singur, ca să completeze manual doar ce
+ * lipsește. Întoarce textul header-ului (nu index-ul).
+ */
+export function detectIdentityFields(rawHeader: string[]): Partial<Record<IdentityField, string>> {
+  const result: Partial<Record<IdentityField, string>> = {}
+  const identityFields: IdentityField[] = ['full_name', 'email', 'phone']
+  rawHeader.forEach((h) => {
+    const canonical = ALIAS_LOOKUP[normalizeHeaderKey(h)] as IdentityField | undefined
+    if (canonical && identityFields.includes(canonical) && result[canonical] === undefined) {
+      result[canonical] = h
+    }
+  })
+  return result
+}
+
 /**
  * Partea „pură” — primește rânduri deja ca text (`string[][]`, antet + date)
  * și le mapează la foaia virtuală IMPORT_FIELDS. Folosită de
  * `parseFacebookExport()` (după decodare .csv/.xls) ȘI direct de
  * `src/lib/leads/google-sheets.ts` (rândurile vin deja ca text de la Sheets API).
+ *
+ * `overrides` (opțional) — mapare manuală per formular, din Setări → Mapare
+ * formulare Facebook (vezi migrarea 011 + facebookFieldMappings.ts) — aplicată
+ * ÎNAINTE de calculul coloanelor „necunoscute" (extraColumns/message), ca o
+ * coloană suprascrisă manual să nu mai ajungă și în mesaj/notițe.
  */
-export function mapFacebookRows(rawRows: string[][]): FacebookParseResult {
+export function mapFacebookRows(rawRows: string[][], overrides?: FieldMappingOverride): FacebookParseResult {
   if (rawRows.length < 2) {
     throw new FacebookFormatError('Fișierul/foaia nu conține rânduri de date sub antet.')
   }
@@ -241,6 +270,14 @@ export function mapFacebookRows(rawRows: string[][]): FacebookParseResult {
     const canonical = ALIAS_LOOKUP[normalizeHeaderKey(h)]
     if (canonical && canonicalIndex[canonical] === undefined) canonicalIndex[canonical] = i
   })
+
+  if (overrides) {
+    for (const [field, headerText] of Object.entries(overrides)) {
+      if (!headerText) continue
+      const idx = rawHeader.findIndex((h) => h === headerText)
+      if (idx !== -1) canonicalIndex[field] = idx
+    }
+  }
 
   const hasIdentity = ['full_name', 'email', 'phone'].some((k) => canonicalIndex[k] !== undefined)
   if (!hasIdentity) {

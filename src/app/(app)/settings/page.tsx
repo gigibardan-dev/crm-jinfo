@@ -26,6 +26,7 @@ import { PipelineStagesSection } from '@/components/settings/PipelineStagesSecti
 import { LeadSourcesSection } from '@/components/settings/LeadSourcesSection'
 import { AutoAssignPanel } from '@/components/dashboard/AutoAssignPanel'
 import { EmailTestSection } from '@/components/settings/EmailTestSection'
+import { FacebookMappingSection } from '@/components/settings/FacebookMappingSection'
 
 export default function SettingsPage() {
   const { isAdmin } = useAuth()
@@ -172,6 +173,8 @@ export default function SettingsPage() {
         <AutoAssignPanel />
 
         <EmailTestSection />
+
+        <FacebookMappingSection />
       </div>
     </>
   )
