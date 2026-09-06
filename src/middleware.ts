@@ -7,11 +7,18 @@
  * reîmprospătează sesiunea Supabase din cookies și redirecționează
  * utilizatorii neautentificați către /login, respectiv pe cei deja
  * autentificați departe de /login. Rutele de webhook (/api/leads/inbound,
- * /api/leads/facebook, /api/leads/sync/facebook-sheets) sunt excluse din
- * protecția de auth — nu au sesiune de browser (apelate server-to-server
- * sau de un pinger extern), au propria autentificare în interiorul rutei
- * (x-api-key la webhook-uri, CRON_SECRET la sync — vezi
- * src/app/api/leads/sync/facebook-sheets/route.ts).
+ * /api/leads/facebook, /api/leads/sync/facebook-sheets) și rutele de cron
+ * (/api/cron/*) sunt excluse din protecția de auth — nu au sesiune de
+ * browser (apelate server-to-server sau de Vercel Cron), au propria
+ * autentificare în interiorul rutei (x-api-key la webhook-uri, CRON_SECRET
+ * la sync + la cron — vezi src/app/api/leads/sync/facebook-sheets/route.ts
+ * și src/app/api/cron/daily-digest/route.ts).
+ *
+ * ATENȚIE la orice rută nouă apelată automat (fără sesiune de browser):
+ * dacă nu apare aici, middleware-ul o redirecționează spre /login înainte
+ * să ajungă în cod — exact ce s-a întâmplat cu /api/cron/daily-digest până
+ * acum (Vercel Cron redirecționat tăcut, 0 loguri; testele manuale din
+ * Chrome mergeau doar pt. că browserul trimitea cookie-ul de sesiune).
  */
 
 import { createServerClient } from '@supabase/ssr'
@@ -55,10 +62,11 @@ export async function middleware(request: NextRequest) {
     request.nextUrl.pathname.startsWith(path)
   )
 
-  // API routes for webhooks (no auth needed) — fiecare are propria autentificare internă
+  // API routes for webhooks + cron (no auth needed) — fiecare are propria autentificare internă
   const isWebhookRoute = request.nextUrl.pathname.startsWith('/api/leads/inbound') ||
     request.nextUrl.pathname.startsWith('/api/leads/facebook') ||
-    request.nextUrl.pathname.startsWith('/api/leads/sync/facebook-sheets')
+    request.nextUrl.pathname.startsWith('/api/leads/sync/facebook-sheets') ||
+    request.nextUrl.pathname.startsWith('/api/cron/')
 
   if (isWebhookRoute) {
     return supabaseResponse

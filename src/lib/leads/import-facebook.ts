@@ -48,7 +48,21 @@ export interface FacebookParseResult {
 
 export class FacebookFormatError extends Error {}
 
-/** Coloanele standard din exportul Facebook — recunoscute după alias normalizat, indiferent de literă mare/mică. */
+/**
+ * Coloanele standard din exportul Facebook — recunoscute după alias
+ * normalizat, indiferent de literă mare/mică.
+ *
+ * Pe lângă header-ele „adevărate" (full_name/email/phone_number, când
+ * formularul folosește tipul de câmp STANDARD din Meta), am adăugat și
+ * variantele în română (nume_complet, numar_de_telefon, telefon) — apar
+ * quando formularul e construit cu întrebări CUSTOM de tip text liber
+ * (etichetate „Nume complet"/„Număr de telefon") în loc de câmpul standard;
+ * Meta exportă atunci header-ul derivat din eticheta întrebării, nu numele
+ * standard. Fără aliasul potrivit, coloana e tratată ca „întrebare
+ * necunoscută" și ajunge integral în mesaj/notițe, fără să completeze
+ * nume/telefon pe lead — exact ce s-a întâmplat cu formularul „Promotie
+ * Circuite Revelion 2027" (vezi discuția din chat).
+ */
 const FIELD_ALIASES: Record<string, string[]> = {
   id: ['id', 'lead_id'],
   created_time: ['created_time', 'createdtime', 'created_at'],
@@ -62,14 +76,22 @@ const FIELD_ALIASES: Record<string, string[]> = {
   form_name: ['form_name'],
   is_organic: ['is_organic'],
   platform: ['platform'],
-  full_name: ['full_name', 'fullname', 'name'],
+  full_name: ['full_name', 'fullname', 'name', 'nume_complet', 'nume'],
   email: ['email', 'e_mail'],
-  phone: ['phone', 'phone_number', 'phonenumber'],
+  phone: ['phone', 'phone_number', 'phonenumber', 'numar_de_telefon', 'nr_de_telefon', 'nr_telefon', 'telefon'],
   lead_status: ['lead_status', 'status'],
 }
 
+/**
+ * Normalizează un header la o cheie comparabilă: fără diacritice (ă/â/î/ș/ț
+ * → litera de bază, NU tăiate ca separator — bug găsit odată cu formularul
+ * de mai sus: „număr" devenea „num_r", nu „numar", deci niciun alias cu
+ * diacritice n-ar fi prins vreodată), literă mică, orice altceva
+ * (spații/cratime/semne de-ntrebare/underscore) devine „_" unic.
+ */
 function normalizeHeaderKey(raw: string): string {
-  return raw.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
+  const withoutDiacritics = raw.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  return withoutDiacritics.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
 }
 
 function buildAliasLookup(): Record<string, string> {
