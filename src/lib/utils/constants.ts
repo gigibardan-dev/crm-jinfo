@@ -71,6 +71,14 @@ export const IN_PROGRESS_STATUSES = [
 // DB, ca să nu mai facem un fetch suplimentar doar pt. atât.
 export const TERMINAL_STATUSES = ['won', 'lost', 'unqualified'] as const
 
+// „Fără Succes" (Dashboard, Pipeline) grupează AMBELE statusuri terminale
+// negative — 'lost' și 'unqualified'. Sunt distincte în pipeline_stages
+// (Pierdut / Necalificat, migrarea 001), dar din perspectiva „nu a devenit
+// client" contează la fel; până acum cardul de pe Dashboard număra doar
+// 'lost', iar 'unqualified' nu apărea nicăieri (68 din 207 leaduri, la
+// verificarea din 14 sept. 2026 — vezi claude/fix-duplicate-facebook-leads-2026-09-14.md).
+export const NO_SUCCESS_STATUSES = ['lost', 'unqualified'] as const
+
 // Alerte lead-uri stagnante (follow-up reminders) — vezi
 // src/lib/utils/stagnantLeads.ts. Prag „stagnant": nicio interacțiune
 // (comentariu/schimbare status) de peste N ore. Prag „critic": culoare

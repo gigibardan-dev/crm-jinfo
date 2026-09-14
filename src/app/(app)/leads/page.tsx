@@ -28,7 +28,7 @@ import { useToast } from '@/components/ui/Toast'
 import { createClient } from '@/lib/supabase/client'
 import { Header } from '@/components/layout/Header'
 import type { Lead, PipelineStage, Profile, LeadSource, Database } from '@/lib/types/database'
-import { IN_PROGRESS_STATUSES } from '@/lib/utils/constants'
+import { IN_PROGRESS_STATUSES, NO_SUCCESS_STATUSES } from '@/lib/utils/constants'
 import { getStagnantInfo } from '@/lib/utils/stagnantLeads'
 import { PipelineToolbar, type PipelineViewMode } from '@/components/leads/pipeline/PipelineToolbar'
 import { PipelineFilterBar } from '@/components/leads/pipeline/PipelineFilterBar'
@@ -38,6 +38,7 @@ import { WonValueModal } from '@/components/leads/lead-detail/LeadActionModals'
 import { type WonDetails, EMPTY_WON_DETAILS, buildWonUpdate, formatWonNote } from '@/lib/types/wonDetails'
 
 const IN_PROGRESS_SET: string[] = [...IN_PROGRESS_STATUSES]
+const NO_SUCCESS_SET: string[] = [...NO_SUCCESS_STATUSES]
 
 export default function PipelinePage() {
   return (
@@ -155,6 +156,8 @@ function PipelinePageContent() {
       if (filterSource !== 'all' && lead.source !== filterSource) return false
       if (filterStatus === 'in_progress') {
         if (!IN_PROGRESS_SET.includes(lead.status)) return false
+      } else if (filterStatus === 'no_success') {
+        if (!NO_SUCCESS_SET.includes(lead.status)) return false
       } else if (filterStatus !== 'all' && lead.status !== filterStatus) return false
       if (filterRemindersDue && !reminderLeadIds.has(lead.id)) return false
       if (filterStagnant && !getStagnantInfo(lead.status, lead.last_interaction_at)) return false

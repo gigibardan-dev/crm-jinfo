@@ -94,6 +94,7 @@ export function PipelineFilterBar({
       <select value={filterStatus} onChange={(e) => onFilterStatusChange(e.target.value)} className={selectClass}>
         <option value="all">Toate statusurile</option>
         <option value="in_progress">În lucru (orice etapă activă)</option>
+        <option value="no_success">Fără Succes (Pierdut + Necalificat)</option>
         {stages.map((s) => <option key={s.slug} value={s.slug}>{s.name}</option>)}
       </select>
       <select value={filterSource} onChange={(e) => onFilterSourceChange(e.target.value)} className={selectClass}>

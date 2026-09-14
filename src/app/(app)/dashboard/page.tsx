@@ -19,7 +19,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Header } from '@/components/layout/Header'
 import { Inbox, TrendingUp, Clock, AlertTriangle, Users, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
-import { IN_PROGRESS_STATUSES } from '@/lib/utils/constants'
+import { IN_PROGRESS_STATUSES, NO_SUCCESS_STATUSES } from '@/lib/utils/constants'
 import { StagnantLeadsWidget } from '@/components/dashboard/StagnantLeadsWidget'
 import { AutoAssignPanel } from '@/components/dashboard/AutoAssignPanel'
 
@@ -49,7 +49,9 @@ export default function DashboardPage() {
           supabase.from('leads').select('*', { count: 'exact', head: true }).eq('status', 'assigned'),
           supabase.from('leads').select('*', { count: 'exact', head: true }).in('status', IN_PROGRESS_STATUSES),
           supabase.from('leads').select('*', { count: 'exact', head: true }).eq('status', 'won'),
-          supabase.from('leads').select('*', { count: 'exact', head: true }).eq('status', 'lost'),
+          // 'lost' + 'unqualified' — ambele statusuri terminale negative, vezi
+          // nota din constants.ts. Înainte se număra doar 'lost'.
+          supabase.from('leads').select('*', { count: 'exact', head: true }).in('status', NO_SUCCESS_STATUSES),
           supabase.from('reminders').select('*', { count: 'exact', head: true })
             .eq('user_id', profile!.id).eq('is_completed', false).lte('remind_at', new Date().toISOString()),
         ])
@@ -92,7 +94,7 @@ export default function DashboardPage() {
     { label: 'Alocate', value: stats.totalAssigned, icon: Users, color: 'text-indigo-600 dark:text-indigo-400', bg: 'bg-indigo-50 dark:bg-indigo-950', href: '/leads?status=assigned', show: true },
     { label: 'În Lucru', value: stats.totalInProgress, icon: Clock, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950', href: '/leads?status=in_progress', show: true },
     { label: 'Câștigate', value: stats.totalWon, icon: TrendingUp, color: 'text-green-600 dark:text-green-400', bg: 'bg-green-50 dark:bg-green-950', href: '/leads?status=won', show: true },
-    { label: 'Fără Succes', value: stats.totalLost, icon: AlertTriangle, color: 'text-red-500 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-950', href: '/leads?status=lost', show: isAdminOrManager },
+    { label: 'Fără Succes', value: stats.totalLost, icon: AlertTriangle, color: 'text-red-500 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-950', href: '/leads?status=no_success', show: isAdminOrManager },
     { label: 'Remindere Azi', value: stats.todayReminders, icon: CheckCircle2, color: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-50 dark:bg-orange-950', href: '/leads?reminders=due', show: true },
   ]
 
