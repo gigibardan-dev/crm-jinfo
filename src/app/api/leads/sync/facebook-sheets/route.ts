@@ -38,6 +38,21 @@
  *    „l:1037064422454556”) — verificăm dacă a fost deja importat căutând
  *    acel id în `leads.source_raw_data->facebook->>id`. Fără asta, la
  *    fiecare rulare am reimporta toate leadurile din foaie, la nesfârșit.
+ *    Verificarea asta e doar o OPTIMIZARE (evită să trimitem la insert rânduri
+ *    evident deja importate) — protecția reală e constrângerea UNIQUE pe
+ *    coloana generată `leads.facebook_lead_id` (migrarea 012) + insert-ul de
+ *    mai jos e un `upsert(..., ignoreDuplicates: true)`, adică
+ *    `ON CONFLICT DO NOTHING`. Citirea-apoi-inserarea de mai sus NU e atomică
+ *    — motivul confirmat (un singur cron la 10 minute, nu mai multe
+ *    scheduler-e suprapuse): dacă Google Sheets conține mai multe rânduri
+ *    noi cu ACELAȘI id Facebook în ACEEAȘI rulare (Meta poate duplica un
+ *    lead în foaie la interval scurt), verificarea de mai sus (o singură
+ *    citire, la începutul rulării filei) nu prinde asta — toate par „încă
+ *    neimportate” în același timp și intră toate în același `.insert()`.
+ *    Fără constrângerea din DB, asta ducea la duplicate reale (același fb
+ *    id, de 3-4 ori) — vezi claude/fix-duplicate-facebook-leads-2026-09-14.md
+ *    din proiect. `ON CONFLICT DO NOTHING` gestionează corect și coliziuni
+ *    în cadrul aceluiași INSERT multi-rând, nu doar între cereri separate.
  * 5. Leadurile chiar noi sunt inserate (nealocate, status `new`, sursa
  *    „facebook”) + activitate de sistem + notificare admin/manager, la fel
  *    ca la restul canalelor.
@@ -63,6 +78,7 @@ interface TabSyncResult {
   imported: number
   alreadySynced: number
   skipped: number
+  duplicateInRun?: number
   error?: string
 }
 
@@ -177,11 +193,28 @@ async function handleSync(request: NextRequest) {
       }
     }
 
-    const newRows = importable.filter((row) => {
+    const notYetInDb = importable.filter((row) => {
       const fbId = rawByRowNumber.get(row.rowNumber)?.id
       return !(fbId && existingFbIds.has(fbId))
     })
-    const alreadySynced = importable.length - newRows.length
+    const alreadySynced = importable.length - notYetInDb.length
+
+    // Dedup suplimentar ÎN CADRUL aceleiași rulări — dacă foaia are 2+
+    // rânduri noi cu ACELAȘI id Facebook (Meta poate duplica un lead în
+    // foaie la interval scurt — vezi nota din docblock), verificarea de mai
+    // sus nu le prinde (niciunul nu era încă în DB la momentul citirii).
+    // Constrângerea UNIQUE din DB (migrarea 012) le-ar respinge oricum la
+    // insert, dar filtrarea aici ține statisticile corecte și evită să
+    // trimitem rânduri redundante la insert.
+    const seenFbIdsThisRun = new Set<string>()
+    const newRows = notYetInDb.filter((row) => {
+      const fbId = rawByRowNumber.get(row.rowNumber)?.id
+      if (!fbId) return true
+      if (seenFbIdsThisRun.has(fbId)) return false
+      seenFbIdsThisRun.add(fbId)
+      return true
+    })
+    const duplicateInRun = notYetInDb.length - newRows.length
 
     // Posibil duplicat (telefon/email deja existent la ALT lead) — informativ, nu blochează, ca la restul importului.
     if (newRows.length > 0) {
@@ -210,6 +243,8 @@ async function handleSync(request: NextRequest) {
       }
     }
 
+    let importedCount = 0
+
     if (newRows.length > 0) {
       const payload = newRows.map((row) => {
         const raw = rawByRowNumber.get(row.rowNumber)
@@ -227,35 +262,57 @@ async function handleSync(request: NextRequest) {
         }
       })
 
+      // upsert + ignoreDuplicates = INSERT ... ON CONFLICT (facebook_lead_id)
+      // DO NOTHING — plasă de siguranță finală: dedup-ul de mai sus (DB +
+      // în cadrul rulării) prinde deja cazul obișnuit, dar dacă totuși mai
+      // scapă ceva (ex: o rulare anterioară a acestei rute care a apucat să
+      // insereze între citirea de mai sus și acest insert), constrângerea
+      // UNIQUE din migrarea 012 face ca acel rând să fie sărit aici în loc
+      // să creeze o copie. Vezi nota din docblock.
       const { data: inserted, error: insertError } = await adminClient
         .from('leads')
-        .insert(payload)
-        .select('id, first_name, last_name, destination')
+        .upsert(payload, { onConflict: 'facebook_lead_id', ignoreDuplicates: true })
+        .select('id, first_name, last_name, destination, facebook_lead_id')
 
       if (insertError) {
-        tabResults.push({ tab: title, rowsFound: mapped.dataRows.length, imported: 0, alreadySynced, skipped: parsedRows.length - importable.length, error: `Eroare la salvare: ${insertError.message}` })
+        tabResults.push({ tab: title, rowsFound: mapped.dataRows.length, imported: 0, alreadySynced, skipped: parsedRows.length - importable.length, duplicateInRun, error: `Eroare la salvare: ${insertError.message}` })
         continue
       }
 
       const insertedRows = inserted || []
-      if (insertedRows.length === newRows.length) {
+      importedCount = insertedRows.length
+      if (insertedRows.length > 0) {
+        // Corelăm fiecare lead chiar inserat cu rândul lui din filă, după
+        // id-ul Facebook (stabil) — NU după poziție/index în newRows, care nu
+        // mai e sigur aliniată dacă ON CONFLICT a sărit unele rânduri (deja
+        // inserate de o cerere concurentă).
+        const rowNumberByFbId = new Map<string, number>()
+        for (const row of newRows) {
+          const fbId = rawByRowNumber.get(row.rowNumber)?.id
+          if (fbId) rowNumberByFbId.set(fbId, row.rowNumber)
+        }
+
         await adminClient.from('lead_activities').insert(
-          insertedRows.map((lead, i) => ({
-            lead_id: lead.id,
-            type: 'system' as const,
-            content: `Lead importat automat din Google Sheets (Facebook Lead Ads) — formular „${title}” (rând ${newRows[i].rowNumber})`,
-          }))
+          insertedRows.map((lead) => {
+            const rowNumber = lead.facebook_lead_id ? rowNumberByFbId.get(lead.facebook_lead_id) : undefined
+            return {
+              lead_id: lead.id,
+              type: 'system' as const,
+              content: `Lead importat automat din Google Sheets (Facebook Lead Ads) — formular „${title}”${rowNumber ? ` (rând ${rowNumber})` : ''}`,
+            }
+          })
         )
-        allInsertedLeads.push(...insertedRows.map((l) => ({ ...l, tab: title })))
+        allInsertedLeads.push(...insertedRows.map((l) => ({ id: l.id, first_name: l.first_name, last_name: l.last_name, destination: l.destination, tab: title })))
       }
     }
 
     tabResults.push({
       tab: title,
       rowsFound: mapped.dataRows.length,
-      imported: newRows.length,
+      imported: importedCount,
       alreadySynced,
       skipped: parsedRows.length - importable.length,
+      duplicateInRun,
     })
   }
 

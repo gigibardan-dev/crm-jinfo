@@ -76,6 +76,7 @@ export type Database = {
           source: string
           source_detail: string | null
           source_raw_data: Json | null
+          facebook_lead_id: string | null
           destination: string | null
           travel_date_from: string | null
           travel_date_to: string | null
