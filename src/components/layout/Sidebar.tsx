@@ -7,9 +7,11 @@
  *
  * Bara laterală cu: nav principal (Dashboard, Inbox, Pipeline, Lead Nou,
  * Import Leaduri — ultimele două admin/manager), nav management (Agenți,
- * Rapoarte — admin/manager), nav admin (Setări), și blocul de user curent +
- * deconectare. Badge-ul de pe „Inbox” arată numărul de leaduri nealocate,
- * cu subscripție Realtime.
+ * Rapoarte — admin/manager; pt. rolul agent, în același loc apare „Profilul
+ * meu”, link direct spre propria pagină /agents/[id] — devenită și pagina
+ * de cont/statistici individuale a agentului, vezi agents/[id]/page.tsx),
+ * nav admin (Setări), și blocul de user curent + deconectare. Badge-ul de pe
+ * „Inbox” arată numărul de leaduri nealocate, cu subscripție Realtime.
  *
  * Responsive: sub `lg` e un sertar ascuns (`-translate-x-full`) controlat de
  * MobileNavProvider (vezi useMobileNav.tsx) — se deschide din butonul
@@ -33,7 +35,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useMobileNav } from '@/lib/hooks/useMobileNav'
 import {
   LayoutDashboard, Inbox, Kanban, PlusCircle, Users,
-  BarChart3, Settings, LogOut, X, FileSpreadsheet, Shuffle, type LucideIcon,
+  BarChart3, Settings, LogOut, X, FileSpreadsheet, Shuffle, UserCircle, type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -96,6 +98,14 @@ export function Sidebar() {
   const role = profile?.role
   const { open, close } = useMobileNav()
   const inAutoAssignPool = role === 'agent' || role === 'manager'
+
+  // Link „Profilul meu" — doar pt. agent, spre propria pagină /agents/[id]
+  // (aceeași pagină pe care o folosește admin/manager pt. orice agent,
+  // devenită și „cont de agent": leaduri proprii cu toate statusurile +
+  // statistici individuale). Nu e parte din managementNav (static, cu href
+  // fix) fiindcă href-ul depinde de profile.id, disponibil doar la runtime.
+  const selfProfileNavItem: NavItem | null =
+    role === 'agent' && profile?.id ? { href: `/agents/${profile.id}`, label: 'Profilul meu', icon: UserCircle } : null
 
   useEffect(() => {
     if (!isAdminOrManager) return
@@ -192,12 +202,15 @@ export function Sidebar() {
             <NavLink key={item.href} item={item} isActive={isActive(item.href)} badge={getBadge(item)} onNavigate={close} />
           ))}
 
-          {managementNav.filter(canSee).length > 0 && (
+          {(managementNav.filter(canSee).length > 0 || selfProfileNavItem) && (
             <>
               <div className="h-px bg-slate-100 dark:bg-slate-800 my-3" />
               {managementNav.filter(canSee).map((item) => (
                 <NavLink key={item.href} item={item} isActive={isActive(item.href)} onNavigate={close} />
               ))}
+              {selfProfileNavItem && (
+                <NavLink key={selfProfileNavItem.href} item={selfProfileNavItem} isActive={isActive(selfProfileNavItem.href)} onNavigate={close} />
+              )}
             </>
           )}
 

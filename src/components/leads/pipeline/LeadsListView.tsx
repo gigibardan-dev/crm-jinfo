@@ -24,16 +24,26 @@ interface LeadsListViewProps {
   itemsPerPage: number
   onPageChange: (page: number) => void
   onItemsPerPageChange: (count: number) => void
+  /** Sortare pe coloana „Activitate" — opțională, vezi LeadsTable. */
+  activitySortDir?: 'asc' | 'desc' | null
+  onToggleActivitySort?: () => void
 }
 
 export function LeadsListView({
   paginatedLeads, totalFilteredCount, stages, agentsById, currentPage, itemsPerPage, onPageChange, onItemsPerPageChange,
+  activitySortDir, onToggleActivitySort,
 }: LeadsListViewProps) {
   return (
     <>
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
-          <LeadsTable leads={paginatedLeads} stages={stages} agentsById={agentsById} />
+          <LeadsTable
+            leads={paginatedLeads}
+            stages={stages}
+            agentsById={agentsById}
+            activitySortDir={activitySortDir}
+            onToggleActivitySort={onToggleActivitySort}
+          />
         </div>
         {totalFilteredCount === 0 && <div className="text-sm text-slate-400 text-center py-12">Niciun lead de afișat.</div>}
       </div>

@@ -9,7 +9,9 @@
  * - Admin/Manager: vede toate KPI-urile + alerte leaduri nealocate
  * - Agent: vede doar leadurile proprii + remindere
  * 
- * Carduri: Leaduri noi, Alocate, În lucru, Câștigate, Fără Succes, Remindere
+ * Carduri: Leaduri noi, Alocate, În lucru, Câștigate, Fără Succes, Remindere,
+ * Nu A Răspuns (shortcut spre /leads?status=no_response), Leaduri Închise
+ * (shortcut spre /leads?status=closed — toate cele 3 statusuri terminale)
  * Alertă: Leaduri nealocate (admin/manager) + Remindere scadente
  */
 
@@ -17,9 +19,9 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { createClient } from '@/lib/supabase/client'
 import { Header } from '@/components/layout/Header'
-import { Inbox, TrendingUp, Clock, AlertTriangle, Users, CheckCircle2 } from 'lucide-react'
+import { Inbox, TrendingUp, Clock, AlertTriangle, Users, CheckCircle2, PhoneMissed, Archive } from 'lucide-react'
 import Link from 'next/link'
-import { IN_PROGRESS_STATUSES, NO_SUCCESS_STATUSES } from '@/lib/utils/constants'
+import { IN_PROGRESS_STATUSES, NO_SUCCESS_STATUSES, TERMINAL_STATUSES } from '@/lib/utils/constants'
 import { StagnantLeadsWidget } from '@/components/dashboard/StagnantLeadsWidget'
 import { AutoAssignPanel } from '@/components/dashboard/AutoAssignPanel'
 
@@ -29,6 +31,8 @@ interface DashboardStats {
   totalInProgress: number
   totalWon: number
   totalLost: number
+  totalNoResponse: number
+  totalClosed: number
   todayReminders: number
 }
 
@@ -43,7 +47,7 @@ export default function DashboardPage() {
 
     async function fetchStats() {
       setLoading(true)
-      const [newLeads, assignedLeads, inProgressLeads, wonLeads, lostLeads, reminders] =
+      const [newLeads, assignedLeads, inProgressLeads, wonLeads, lostLeads, noResponseLeads, closedLeads, reminders] =
         await Promise.all([
           supabase.from('leads').select('*', { count: 'exact', head: true }).eq('status', 'new'),
           supabase.from('leads').select('*', { count: 'exact', head: true }).eq('status', 'assigned'),
@@ -52,6 +56,12 @@ export default function DashboardPage() {
           // 'lost' + 'unqualified' — ambele statusuri terminale negative, vezi
           // nota din constants.ts. Înainte se număra doar 'lost'.
           supabase.from('leads').select('*', { count: 'exact', head: true }).in('status', NO_SUCCESS_STATUSES),
+          // Shortcut card „Nu A Răspuns" — deschise, status exact 'no_response'.
+          supabase.from('leads').select('*', { count: 'exact', head: true }).eq('status', 'no_response'),
+          // Shortcut card „Leaduri Închise" — TOATE cele 3 statusuri terminale
+          // (câștigat + pierdut + necalificat), spre deosebire de „Fără Succes"
+          // care numără doar cele 2 negative.
+          supabase.from('leads').select('*', { count: 'exact', head: true }).in('status', TERMINAL_STATUSES),
           supabase.from('reminders').select('*', { count: 'exact', head: true })
             .eq('user_id', profile!.id).eq('is_completed', false).lte('remind_at', new Date().toISOString()),
         ])
@@ -61,6 +71,8 @@ export default function DashboardPage() {
         totalInProgress: inProgressLeads.count || 0,
         totalWon: wonLeads.count || 0,
         totalLost: lostLeads.count || 0,
+        totalNoResponse: noResponseLeads.count || 0,
+        totalClosed: closedLeads.count || 0,
         todayReminders: reminders.count || 0,
       })
       setLoading(false)
@@ -76,7 +88,7 @@ export default function DashboardPage() {
         <Header title="Dashboard" />
         <div className="p-4 sm:p-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[...Array(6)].map((_, i) => (
+            {[...Array(8)].map((_, i) => (
               <div key={i} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 p-5 animate-pulse">
                 <div className="h-4 bg-slate-100 dark:bg-slate-800 rounded w-24 mb-3" />
                 <div className="h-8 bg-slate-100 dark:bg-slate-800 rounded w-16" />
@@ -96,6 +108,8 @@ export default function DashboardPage() {
     { label: 'Câștigate', value: stats.totalWon, icon: TrendingUp, color: 'text-green-600 dark:text-green-400', bg: 'bg-green-50 dark:bg-green-950', href: '/leads?status=won', show: true },
     { label: 'Fără Succes', value: stats.totalLost, icon: AlertTriangle, color: 'text-red-500 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-950', href: '/leads?status=no_success', show: isAdminOrManager },
     { label: 'Remindere Azi', value: stats.todayReminders, icon: CheckCircle2, color: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-50 dark:bg-orange-950', href: '/leads?reminders=due', show: true },
+    { label: 'Nu A Răspuns', value: stats.totalNoResponse, icon: PhoneMissed, color: 'text-purple-600 dark:text-purple-400', bg: 'bg-purple-50 dark:bg-purple-950', href: '/leads?status=no_response', show: true },
+    { label: 'Leaduri Închise', value: stats.totalClosed, icon: Archive, color: 'text-teal-600 dark:text-teal-400', bg: 'bg-teal-50 dark:bg-teal-950', href: '/leads?status=closed', show: true },
   ]
 
   return (

@@ -28,7 +28,7 @@ import { useToast } from '@/components/ui/Toast'
 import { createClient } from '@/lib/supabase/client'
 import { Header } from '@/components/layout/Header'
 import type { Lead, PipelineStage, Profile, LeadSource, Database } from '@/lib/types/database'
-import { IN_PROGRESS_STATUSES, NO_SUCCESS_STATUSES } from '@/lib/utils/constants'
+import { IN_PROGRESS_STATUSES, NO_SUCCESS_STATUSES, TERMINAL_STATUSES } from '@/lib/utils/constants'
 import { getStagnantInfo } from '@/lib/utils/stagnantLeads'
 import { PipelineToolbar, type PipelineViewMode } from '@/components/leads/pipeline/PipelineToolbar'
 import { PipelineFilterBar } from '@/components/leads/pipeline/PipelineFilterBar'
@@ -39,6 +39,10 @@ import { type WonDetails, EMPTY_WON_DETAILS, buildWonUpdate, formatWonNote } fro
 
 const IN_PROGRESS_SET: string[] = [...IN_PROGRESS_STATUSES]
 const NO_SUCCESS_SET: string[] = [...NO_SUCCESS_STATUSES]
+// „Leaduri Închise" (card Dashboard) — toate cele 3 statusuri terminale
+// (câștigat + pierdut + necalificat), spre deosebire de „Fără Succes" care
+// numără doar cele 2 negative.
+const CLOSED_SET: string[] = [...TERMINAL_STATUSES]
 
 export default function PipelinePage() {
   return (
@@ -103,6 +107,14 @@ function PipelinePageContent() {
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(25)
 
+  // --- Sortare „Activitate" (listă) — disponibilă la click pe antet, dar
+  // NU e sortarea implicită (rămâne created_at desc, ca până acum) până
+  // userul nu apasă explicit pe coloană. Ciclu: implicit -> desc -> asc -> implicit.
+  const [sortByActivity, setSortByActivity] = useState<'asc' | 'desc' | null>(null)
+  function toggleActivitySort() {
+    setSortByActivity((prev) => (prev === null ? 'desc' : prev === 'desc' ? 'asc' : null))
+  }
+
   // --- Won modal ---
   const [showWonModal, setShowWonModal] = useState(false)
   const [wonLeadId, setWonLeadId] = useState<string | null>(null)
@@ -158,6 +170,8 @@ function PipelinePageContent() {
         if (!IN_PROGRESS_SET.includes(lead.status)) return false
       } else if (filterStatus === 'no_success') {
         if (!NO_SUCCESS_SET.includes(lead.status)) return false
+      } else if (filterStatus === 'closed') {
+        if (!CLOSED_SET.includes(lead.status)) return false
       } else if (filterStatus !== 'all' && lead.status !== filterStatus) return false
       if (filterRemindersDue && !reminderLeadIds.has(lead.id)) return false
       if (filterStagnant && !getStagnantInfo(lead.status, lead.last_interaction_at)) return false
@@ -168,8 +182,21 @@ function PipelinePageContent() {
     })
   }, [leads, filterAgent, filterSource, filterStatus, filterRemindersDue, reminderLeadIds, filterStagnant, filterPriority, filterDateFrom, filterDateTo])
 
+  // Listă sortată — doar când userul a ales explicit sortare pe activitate;
+  // altfel păstrează ordinea din filteredLeads (created_at desc, din query).
+  const sortedFilteredLeads = useMemo(() => {
+    if (!sortByActivity) return filteredLeads
+    const copy = [...filteredLeads]
+    copy.sort((a, b) => {
+      const ta = new Date(a.last_activity_at || a.created_at).getTime()
+      const tb = new Date(b.last_activity_at || b.created_at).getTime()
+      return sortByActivity === 'asc' ? ta - tb : tb - ta
+    })
+    return copy
+  }, [filteredLeads, sortByActivity])
+
   // Reset page when filters change
-  useEffect(() => { setCurrentPage(1) }, [filterAgent, filterSource, filterStatus, filterRemindersDue, filterStagnant, filterPriority, filterDateFrom, filterDateTo])
+  useEffect(() => { setCurrentPage(1) }, [filterAgent, filterSource, filterStatus, filterRemindersDue, filterStagnant, filterPriority, filterDateFrom, filterDateTo, sortByActivity])
 
   const hasActiveFilters = filterAgent !== 'all' || filterSource !== 'all' || filterStatus !== 'all' || filterRemindersDue
     || filterStagnant || filterPriority !== 'all' || !!filterDateFrom || !!filterDateTo
@@ -207,11 +234,13 @@ function PipelinePageContent() {
   // --- Pagination slicing (list view only) ---
   const paginatedLeads = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage
-    return filteredLeads.slice(start, start + itemsPerPage)
-  }, [filteredLeads, currentPage, itemsPerPage])
+    return sortedFilteredLeads.slice(start, start + itemsPerPage)
+  }, [sortedFilteredLeads, currentPage, itemsPerPage])
 
-  // Kanban helpers
-  const visibleStages = stages.filter((s) => !s.is_terminal || s.slug === 'won' || s.slug === 'lost')
+  // Kanban helpers — toate etapele au coloană proprie, inclusiv toate cele 3
+  // terminale (câștigat/pierdut/necalificat). Înainte doar won/lost aveau
+  // coloană, iar leadurile „necalificat" nu apăreau nicăieri în Kanban.
+  const visibleStages = stages
 
   // --- Won modal ---
   async function handleWon() {
@@ -294,6 +323,8 @@ function PipelinePageContent() {
             itemsPerPage={itemsPerPage}
             onPageChange={setCurrentPage}
             onItemsPerPageChange={setItemsPerPage}
+            activitySortDir={sortByActivity}
+            onToggleActivitySort={toggleActivitySort}
           />
         )}
       </div>

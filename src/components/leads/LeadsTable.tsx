@@ -18,11 +18,17 @@
  * pe ecrane înguste containerul părinte trebuie să aibă `overflow-x-auto`
  * (vezi LeadsListView și pagina de agent) ca tabelul să scroleze orizontal
  * în loc să se înghesuie coloanele.
+ *
+ * Coloana „Activitate" e sortabilă (click pe antet) DOAR când i se dă
+ * `onToggleActivitySort` — folosit din Pipeline (LeadsListView). Fără acest
+ * prop antetul rămâne text simplu, needitat (ex. pagina de profil agent),
+ * ca să nu apară un buton de sortare care nu face nimic.
  */
 
 'use client'
 
 import Link from 'next/link'
+import { ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
 import { SourceIcon } from '@/components/leads/SourceIcon'
 import { PriorityBadge } from '@/components/leads/PriorityBadge'
 import { StatusBadge } from '@/components/leads/StatusBadge'
@@ -34,9 +40,12 @@ interface LeadsTableProps {
   leads: Lead[]
   stages: PipelineStage[]
   agentsById?: Record<string, Profile>
+  /** Sortare pe coloana „Activitate" — opțională, vezi comentariul de sus. */
+  activitySortDir?: 'asc' | 'desc' | null
+  onToggleActivitySort?: () => void
 }
 
-export function LeadsTable({ leads, stages, agentsById }: LeadsTableProps) {
+export function LeadsTable({ leads, stages, agentsById, activitySortDir, onToggleActivitySort }: LeadsTableProps) {
   const showAgentColumn = !!agentsById
 
   return (
@@ -49,7 +58,21 @@ export function LeadsTable({ leads, stages, agentsById }: LeadsTableProps) {
           <th className="px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Status</th>
           {showAgentColumn && <th className="px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Agent</th>}
           <th className="px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Prioritate</th>
-          <th className="px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Activitate</th>
+          <th className="px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">
+            {onToggleActivitySort ? (
+              <button
+                type="button"
+                onClick={onToggleActivitySort}
+                className="inline-flex items-center gap-1 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+                title="Sortează după activitate"
+              >
+                Activitate
+                {activitySortDir === 'desc' ? <ArrowDown size={12} /> : activitySortDir === 'asc' ? <ArrowUp size={12} /> : <ArrowUpDown size={12} className="opacity-50" />}
+              </button>
+            ) : (
+              'Activitate'
+            )}
+          </th>
         </tr>
       </thead>
       <tbody>

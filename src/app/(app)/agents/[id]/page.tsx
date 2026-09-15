@@ -7,13 +7,23 @@
  * profil prin PATCH /api/users/:id). Markup-ul e delegat componentelor
  * AgentProfileCard, LeadsTable și AgentStatsPanel — fișierul rămâne axat
  * pe date/handlere.
- * Acces: doar admin/manager. Editarea profilului: doar admin.
+ *
+ * Acces: admin/manager (pe orice agent) SAU agentul însuși, pe propriul id
+ * — devine astfel și pagina de „cont de agent": agentul își vede aici
+ * propriile leaduri alocate, cu TOATE statusurile (inclusiv cele închise —
+ * câștigat/pierdut/necalificat, care altfel nu erau vizibile decât prin
+ * căutarea globală), plus statisticile individuale din AgentStatsPanel.
+ * Query-urile nu au nevoie de filtrare suplimentară pe agent: RLS
+ * (leads_select, 001_initial_schema.sql) limitează oricum un agent la
+ * `assigned_to = auth.uid()`, indiferent de status.
+ * Editarea profilului rămâne doar admin.
  */
 
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { createClient } from '@/lib/supabase/client'
 import { Header } from '@/components/layout/Header'
@@ -25,9 +35,12 @@ import { ArrowLeft } from 'lucide-react'
 
 export default function AgentDetailPage() {
   const { id } = useParams<{ id: string }>()
-  const { isAdmin, isAdminOrManager } = useAuth()
+  const { profile, isAdmin, isAdminOrManager } = useAuth()
   const router = useRouter()
   const supabase = createClient()
+
+  const isOwnProfile = !!profile?.id && profile.id === id
+  const canView = isAdminOrManager || isOwnProfile
 
   const [agent, setAgent] = useState<Profile | null>(null)
   const [leads, setLeads] = useState<Lead[]>([])
@@ -76,9 +89,9 @@ export default function AgentDetailPage() {
   }, [id, supabase])
 
   useEffect(() => {
-    if (!id || !isAdminOrManager) return
+    if (!id || !canView) return
     fetchData()
-  }, [id, isAdminOrManager, fetchData])
+  }, [id, canView, fetchData])
 
   async function saveEdit() {
     setSaving(true)
@@ -126,7 +139,7 @@ export default function AgentDetailPage() {
     setSaving(false)
   }
 
-  if (!isAdminOrManager) {
+  if (!canView) {
     return (
       <>
         <Header title="Profil Agent" />
@@ -152,11 +165,17 @@ export default function AgentDetailPage() {
 
   return (
     <>
-      <Header />
+      <Header title={isAdminOrManager ? undefined : 'Contul meu'} />
       <div className="p-4 sm:p-6">
-        <button onClick={() => router.back()} className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors mb-6">
-          <ArrowLeft size={16} /> Înapoi la Agenți
-        </button>
+        {isAdminOrManager ? (
+          <button onClick={() => router.back()} className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors mb-6">
+            <ArrowLeft size={16} /> Înapoi la Agenți
+          </button>
+        ) : (
+          <Link href="/dashboard" className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors mb-6">
+            <ArrowLeft size={16} /> Înapoi la Dashboard
+          </Link>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left: Profile + Leads */}
