@@ -88,7 +88,7 @@ export default function DashboardPage() {
         <Header title="Dashboard" />
         <div className="p-4 sm:p-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[...Array(8)].map((_, i) => (
+            {[...Array(6)].map((_, i) => (
               <div key={i} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 p-5 animate-pulse">
                 <div className="h-4 bg-slate-100 dark:bg-slate-800 rounded w-24 mb-3" />
                 <div className="h-8 bg-slate-100 dark:bg-slate-800 rounded w-16" />
@@ -108,8 +108,9 @@ export default function DashboardPage() {
     { label: 'Câștigate', value: stats.totalWon, icon: TrendingUp, color: 'text-green-600 dark:text-green-400', bg: 'bg-green-50 dark:bg-green-950', href: '/leads?status=won', show: true },
     { label: 'Fără Succes', value: stats.totalLost, icon: AlertTriangle, color: 'text-red-500 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-950', href: '/leads?status=no_success', show: isAdminOrManager },
     { label: 'Remindere Azi', value: stats.todayReminders, icon: CheckCircle2, color: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-50 dark:bg-orange-950', href: '/leads?reminders=due', show: true },
-    { label: 'Nu A Răspuns', value: stats.totalNoResponse, icon: PhoneMissed, color: 'text-purple-600 dark:text-purple-400', bg: 'bg-purple-50 dark:bg-purple-950', href: '/leads?status=no_response', show: true },
-    { label: 'Leaduri Închise', value: stats.totalClosed, icon: Archive, color: 'text-teal-600 dark:text-teal-400', bg: 'bg-teal-50 dark:bg-teal-950', href: '/leads?status=closed', show: true },
+    // Doar pt. agent — admin/manager au deja acoperite astea prin Rapoarte/Inbox/celelalte carduri.
+    { label: 'Nu A Răspuns', value: stats.totalNoResponse, icon: PhoneMissed, color: 'text-purple-600 dark:text-purple-400', bg: 'bg-purple-50 dark:bg-purple-950', href: '/leads?status=no_response', show: !isAdminOrManager },
+    { label: 'Leaduri Închise', value: stats.totalClosed, icon: Archive, color: 'text-teal-600 dark:text-teal-400', bg: 'bg-teal-50 dark:bg-teal-950', href: '/leads?status=closed', show: !isAdminOrManager },
   ]
 
   return (
