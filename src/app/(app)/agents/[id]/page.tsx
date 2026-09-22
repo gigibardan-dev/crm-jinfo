@@ -17,21 +17,29 @@
  * (leads_select, 001_initial_schema.sql) limitează oricum un agent la
  * `assigned_to = auth.uid()`, indiferent de status.
  * Editarea profilului rămâne doar admin.
+ *
+ * Leaduri alocate: fără `.limit()` la fetch (un agent nu are mii de
+ * leaduri) — filtrare status + sortare activitate + paginare (25/50/100,
+ * implicit 25) se fac client-side, ca în Pipeline (LeadsTable are deja
+ * prop-urile de sortare de acolo, reutilizate identic aici).
  */
 
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { createClient } from '@/lib/supabase/client'
 import { Header } from '@/components/layout/Header'
 import { LeadsTable } from '@/components/leads/LeadsTable'
+import { Pagination } from '@/components/ui/Pagination'
 import { AgentProfileCard, type AgentEditForm } from '@/components/agents/AgentProfileCard'
 import { AgentStatsPanel, type AgentStats } from '@/components/agents/AgentStatsPanel'
 import type { Profile, Lead, PipelineStage } from '@/lib/types/database'
 import { ArrowLeft } from 'lucide-react'
+
+const selectClass = "px-3 py-1.5 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
 
 export default function AgentDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -47,6 +55,39 @@ export default function AgentDetailPage() {
   const [stages, setStages] = useState<PipelineStage[]>([])
   const [loading, setLoading] = useState(true)
 
+  // --- Leaduri alocate: filtru status + sortare activitate + paginare ---
+  const [filterStatus, setFilterStatus] = useState('all')
+  const [activitySortDir, setActivitySortDir] = useState<'asc' | 'desc' | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(25)
+
+  const filteredLeads = useMemo(
+    () => (filterStatus === 'all' ? leads : leads.filter((l) => l.status === filterStatus)),
+    [leads, filterStatus]
+  )
+
+  const sortedLeads = useMemo(() => {
+    if (!activitySortDir) return filteredLeads
+    const copy = [...filteredLeads]
+    copy.sort((a, b) => {
+      const ta = new Date(a.last_activity_at || a.created_at).getTime()
+      const tb = new Date(b.last_activity_at || b.created_at).getTime()
+      return activitySortDir === 'asc' ? ta - tb : tb - ta
+    })
+    return copy
+  }, [filteredLeads, activitySortDir])
+
+  const paginatedLeads = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage
+    return sortedLeads.slice(start, start + itemsPerPage)
+  }, [sortedLeads, currentPage, itemsPerPage])
+
+  useEffect(() => { setCurrentPage(1) }, [filterStatus, activitySortDir])
+
+  function toggleActivitySort() {
+    setActivitySortDir((prev) => (prev === null ? 'desc' : prev === 'desc' ? 'asc' : null))
+  }
+
   // Stats
   const [stats, setStats] = useState<AgentStats>({ active: 0, won: 0, lost: 0, total: 0 })
 
@@ -61,7 +102,7 @@ export default function AgentDetailPage() {
   const fetchData = useCallback(async () => {
     const [agentRes, leadsRes, stagesRes] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', id).single(),
-      supabase.from('leads').select('*').eq('assigned_to', id).order('created_at', { ascending: false }).limit(50),
+      supabase.from('leads').select('*').eq('assigned_to', id).order('created_at', { ascending: false }),
       supabase.from('pipeline_stages').select('*').order('display_order'),
     ])
 
@@ -198,16 +239,40 @@ export default function AgentDetailPage() {
 
             {/* Leads list */}
             <div>
-              <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-3">Leaduri alocate ({leads.length})</h3>
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100">Leaduri alocate ({leads.length})</h3>
+                {leads.length > 0 && (
+                  <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className={selectClass}>
+                    <option value="all">Toate statusurile</option>
+                    {stages.map((s) => <option key={s.slug} value={s.slug}>{s.name}</option>)}
+                  </select>
+                )}
+              </div>
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
                 {leads.length === 0 ? (
                   <div className="text-sm text-slate-400 text-center py-10">Niciun lead alocat.</div>
+                ) : filteredLeads.length === 0 ? (
+                  <div className="text-sm text-slate-400 text-center py-10">Niciun lead cu acest status.</div>
                 ) : (
                   <div className="overflow-x-auto">
-                    <LeadsTable leads={leads} stages={stages} />
+                    <LeadsTable
+                      leads={paginatedLeads}
+                      stages={stages}
+                      activitySortDir={activitySortDir}
+                      onToggleActivitySort={toggleActivitySort}
+                    />
                   </div>
                 )}
               </div>
+              {filteredLeads.length > 0 && (
+                <Pagination
+                  currentPage={currentPage}
+                  totalItems={filteredLeads.length}
+                  itemsPerPage={itemsPerPage}
+                  onPageChange={setCurrentPage}
+                  onItemsPerPageChange={setItemsPerPage}
+                />
+              )}
             </div>
           </div>
 

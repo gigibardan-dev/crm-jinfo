@@ -7,7 +7,10 @@
  *
  * Grid de carduri, unul per agent/manager activ, cu inițiale, rol,
  * indicator de încărcare (verde/galben/roșu după nr. leaduri active) și
- * mini-statistici (active/câștigate/fără succes). Click → /agents/[id].
+ * mini-statistici (active/câștigate/fără succes/necalificate — 4 pătrățele
+ * pe rând, de-aia grid-ul de carduri e limitat la 2 pe rând, ca fiecare
+ * card să aibă destulă lățime) + un rând subtil „Leaduri alocate all time"
+ * (suma celor 4). Click → /agents/[id].
  */
 
 import { useEffect, useState } from 'react'
@@ -16,7 +19,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Header } from '@/components/layout/Header'
 import type { Profile } from '@/lib/types/database'
 import { getInitials } from '@/lib/utils'
-import { TrendingUp, AlertTriangle, Clock, ChevronRight } from 'lucide-react'
+import { TrendingUp, AlertTriangle, Clock, HelpCircle, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import { OnlineAgentsCard } from '@/components/agents/OnlineAgentsCard'
 
@@ -25,6 +28,7 @@ interface AgentStats {
   activeLeads: number
   wonLeads: number
   lostLeads: number
+  unqualifiedLeads: number
 }
 
 export default function AgentsPage() {
@@ -48,19 +52,22 @@ export default function AgentsPage() {
 
       const stats: AgentStats[] = await Promise.all(
         agents.map(async (agent) => {
-          const [active, won, lost] = await Promise.all([
+          const [active, won, lost, unqualified] = await Promise.all([
             supabase.from('leads').select('*', { count: 'exact', head: true })
               .eq('assigned_to', agent.id).not('status', 'in', '("won","lost","unqualified")'),
             supabase.from('leads').select('*', { count: 'exact', head: true })
               .eq('assigned_to', agent.id).eq('status', 'won'),
             supabase.from('leads').select('*', { count: 'exact', head: true })
               .eq('assigned_to', agent.id).eq('status', 'lost'),
+            supabase.from('leads').select('*', { count: 'exact', head: true })
+              .eq('assigned_to', agent.id).eq('status', 'unqualified'),
           ])
           return {
             profile: agent,
             activeLeads: active.count || 0,
             wonLeads: won.count || 0,
             lostLeads: lost.count || 0,
+            unqualifiedLeads: unqualified.count || 0,
           }
         })
       )
@@ -92,13 +99,13 @@ export default function AgentsPage() {
       <Header title="Agenți" />
       <div className="p-4 sm:p-6">
         {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {[...Array(4)].map((_, i) => (
               <div key={i} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-5 animate-pulse h-36" />
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {agentStats.map((stat) => (
               <Link
                 key={stat.profile.id}
@@ -119,7 +126,7 @@ export default function AgentsPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-4 gap-2">
                   <div className="text-center p-2 rounded-lg bg-slate-50 dark:bg-slate-800">
                     <div className="flex items-center justify-center gap-1 mb-0.5">
                       <Clock size={12} className="text-slate-400" />
@@ -141,7 +148,22 @@ export default function AgentsPage() {
                     <p className="text-lg font-semibold text-red-500">{stat.lostLeads}</p>
                     <p className="text-[10px] text-slate-400 uppercase">Fără Succes</p>
                   </div>
+                  <div className="text-center p-2 rounded-lg bg-slate-50 dark:bg-slate-800">
+                    <div className="flex items-center justify-center gap-1 mb-0.5">
+                      <HelpCircle size={12} className="text-slate-400" />
+                    </div>
+                    <p className="text-lg font-semibold text-slate-500 dark:text-slate-400">{stat.unqualifiedLeads}</p>
+                    <p className="text-[10px] text-slate-400 uppercase">Necalificate</p>
+                  </div>
                 </div>
+
+                {/* Subtil, jos de tot — totalul all-time (suma celor 4 de mai sus) */}
+                <p className="mt-2.5 text-[10px] text-slate-400 dark:text-slate-500 text-center">
+                  Leaduri alocate all time:{' '}
+                  <span className="font-medium text-slate-500 dark:text-slate-400">
+                    {stat.activeLeads + stat.wonLeads + stat.lostLeads + stat.unqualifiedLeads}
+                  </span>
+                </p>
               </Link>
             ))}
           </div>
