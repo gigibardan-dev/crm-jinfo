@@ -55,7 +55,12 @@ type VapiMessage = {
 
 type Admin = ReturnType<typeof createAdminClient>
 
+// Numele Structured Outputs din Vapi (atașate fiecărui asistent de campanie):
+//   calificare_lead — obiect cu răspunsurile clientului (schema din classify.ts)
+//   rezumat_apel    — text, rezumatul apelului în română (alternativă la
+//                     Analysis → Summary din asistent)
 const STRUCTURED_OUTPUT_NAME = 'calificare_lead'
+const SUMMARY_OUTPUT_NAME = 'rezumat_apel'
 
 /** Găsește rândul ai_calls corespunzător mesajului. */
 async function findAiCall(admin: Admin, msg: VapiMessage) {
@@ -89,7 +94,9 @@ function extractStructured(msg: VapiMessage): CalificareLead | null {
   const outputs = msg.artifact?.structuredOutputs
   if (outputs && typeof outputs === 'object') {
     const entries = Object.values(outputs)
-    const match = entries.find((o) => o?.name === STRUCTURED_OUTPUT_NAME) ?? entries[0]
+    const match =
+      entries.find((o) => o?.name === STRUCTURED_OUTPUT_NAME) ??
+      entries.find((o) => o?.result && typeof o.result === 'object')
     if (match?.result && typeof match.result === 'object') return match.result as CalificareLead
   }
   const legacy = msg.analysis?.structuredData
@@ -97,10 +104,23 @@ function extractStructured(msg: VapiMessage): CalificareLead | null {
   return null
 }
 
+/** Rezumatul: Analysis → Summary, apoi Structured Output text `rezumat_apel`. */
+function extractSummary(msg: VapiMessage): string | null {
+  const fromAnalysis = msg.analysis?.summary || msg.summary
+  if (fromAnalysis && fromAnalysis.trim()) return fromAnalysis.trim()
+  const outputs = msg.artifact?.structuredOutputs
+  if (outputs && typeof outputs === 'object') {
+    const match = Object.values(outputs).find((o) => o?.name === SUMMARY_OUTPUT_NAME)
+    if (typeof match?.result === 'string' && match.result.trim()) return match.result.trim()
+  }
+  return null
+}
+
 /** Text scurt, lizibil, pentru timeline. */
 function buildTimelineText(label: string, summary: string | null, s: CalificareLead | null): string {
   const lines = [`Apel AI — ${label}`]
   if (summary) lines.push(summary)
+  if (!summary && !s) lines.push('Fără rezumat și fără date extrase de Vapi — verifică transcriptul și înregistrarea.')
   if (s) {
     const details: string[] = []
     if (s.nr_persoane) details.push(`Persoane: ${s.nr_persoane}`)
@@ -136,7 +156,7 @@ async function handleEndOfCallReport(admin: Admin, msg: VapiMessage) {
   if (!row) return
 
   const structured = extractStructured(msg)
-  const summary = msg.analysis?.summary || msg.summary || null
+  const summary = extractSummary(msg)
   const transcript = msg.artifact?.transcript || msg.transcript || null
   const recordingUrl =
     msg.artifact?.recordingUrl ||
