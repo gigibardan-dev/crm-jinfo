@@ -28,7 +28,7 @@ import type { LeadActivity, PipelineStage, Profile } from '@/lib/types/database'
 import { formatDateTime } from '@/lib/utils'
 import {
   MessageSquare, Clock, Users, Bell, Pencil, AlertCircle,
-  Mail, Phone, Trash2, Check, X,
+  Mail, Phone, Trash2, Check, X, Bot,
 } from 'lucide-react'
 
 /** Icon + color config per activity type */
@@ -41,6 +41,7 @@ const ACTIVITY_ICONS: Record<string, { icon: typeof Clock; color: string }> = {
   system:        { icon: AlertCircle,   color: 'bg-slate-100 dark:bg-slate-800 text-slate-400' },
   email_sent:    { icon: Mail,          color: 'bg-cyan-50 dark:bg-cyan-950 text-cyan-500' },
   call_logged:   { icon: Phone,         color: 'bg-green-50 dark:bg-green-950 text-green-500' },
+  ai_call:       { icon: Bot,           color: 'bg-violet-50 dark:bg-violet-950 text-violet-500' },
 }
 
 interface LeadTimelineProps {

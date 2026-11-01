@@ -34,6 +34,7 @@ import { LeadTimeline } from '@/components/leads/LeadTimeline'
 import { StatusDropdown } from '@/components/leads/lead-detail/StatusDropdown'
 import { LeadInfoCard, type LeadEditForm } from '@/components/leads/lead-detail/LeadInfoCard'
 import { JinfocruiseDetailsPanel } from '@/components/leads/lead-detail/JinfocruiseDetailsPanel'
+import { AiCallsPanel } from '@/components/leads/lead-detail/AiCallsPanel'
 import { CommentForm } from '@/components/leads/lead-detail/CommentForm'
 import { LeadMetaSidebar } from '@/components/leads/lead-detail/LeadMetaSidebar'
 import { ReminderPanel } from '@/components/leads/lead-detail/ReminderPanel'
@@ -434,6 +435,10 @@ export default function LeadDetailPage() {
             {jinfocruiseMeta && (
               <JinfocruiseDetailsPanel source={lead.source} meta={jinfocruiseMeta} passengers={jinfocruisePassengers} />
             )}
+
+            {/* Apeluri AI (Vapi) — rezumat, date extrase, înregistrare, conversație.
+                Butonul „Sună cu AI" doar pt. admin/manager; agentul doar vede. */}
+            <AiCallsPanel leadId={lead.id} canCall={isAdminOrManager} onCallFinished={fetchLead} />
 
             <CommentForm comment={comment} onCommentChange={setComment} onSubmit={handleComment} sending={sendingComment} />
 
