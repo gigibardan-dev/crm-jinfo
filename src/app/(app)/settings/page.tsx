@@ -15,6 +15,8 @@
  * - Email: status SMTP + test + control notificări automate.
  * - Integrări: mapare formulare Facebook (Google Sheets) — loc pregătit
  *   pt. viitoare integrări noi.
+ * - Apeluri AI: starea configurării Vapi + campaniile (un asistent Vapi per
+ *   campanie) — vezi AiCallsSection + migrarea 013.
  *
  * Toate taburile rămân montate simultan (ascunse cu CSS, nu demontate) —
  * fiecare secțiune își face propriul fetch o singură dată, la încărcarea
@@ -30,7 +32,7 @@ import { useAuth } from '@/lib/hooks/useAuth'
 import { useToast } from '@/components/ui/Toast'
 import { createClient } from '@/lib/supabase/client'
 import { Header } from '@/components/layout/Header'
-import { Users, Workflow, Mail, Plug } from 'lucide-react'
+import { Users, Workflow, Mail, Plug, PhoneCall } from 'lucide-react'
 import type { Profile, PipelineStage, LeadSource } from '@/lib/types/database'
 import { UsersSection } from '@/components/settings/UsersSection'
 import type { NewUserFormData } from '@/components/settings/NewUserForm'
@@ -39,12 +41,14 @@ import { LeadSourcesSection } from '@/components/settings/LeadSourcesSection'
 import { AutoAssignPanel } from '@/components/dashboard/AutoAssignPanel'
 import { EmailTestSection } from '@/components/settings/EmailTestSection'
 import { FacebookMappingSection } from '@/components/settings/FacebookMappingSection'
+import { AiCallsSection } from '@/components/settings/AiCallsSection'
 
 const TABS = [
   { key: 'utilizatori', label: 'Utilizatori', icon: Users },
   { key: 'pipeline', label: 'Pipeline', icon: Workflow },
   { key: 'email', label: 'Email', icon: Mail },
   { key: 'integrari', label: 'Integrări', icon: Plug },
+  { key: 'apeluri_ai', label: 'Apeluri AI', icon: PhoneCall },
 ] as const
 
 type TabKey = (typeof TABS)[number]['key']
@@ -228,6 +232,11 @@ export default function SettingsPage() {
 
         <div className={activeTab === 'integrari' ? 'space-y-8' : 'hidden'}>
           <FacebookMappingSection />
+        </div>
+
+        {/* Agent AI de apelare (Vapi) — configurare + campanii. Vezi migrarea 013. */}
+        <div className={activeTab === 'apeluri_ai' ? 'space-y-8' : 'hidden'}>
+          <AiCallsSection />
         </div>
       </div>
     </>

@@ -8,7 +8,8 @@
  * utilizatorii neautentificați către /login, respectiv pe cei deja
  * autentificați departe de /login. Rutele de webhook (/api/leads/inbound,
  * /api/leads/facebook, /api/leads/sync/facebook-sheets) și rutele de cron
- * (/api/cron/*) sunt excluse din protecția de auth — nu au sesiune de
+ * (/api/cron/*) + webhook-ul Vapi (/api/voice/vapi-webhook, verificat cu
+ * headerul x-vapi-secret) sunt excluse din protecția de auth — nu au sesiune de
  * browser (apelate server-to-server sau de Vercel Cron), au propria
  * autentificare în interiorul rutei (x-api-key la webhook-uri, CRON_SECRET
  * la sync + la cron — vezi src/app/api/leads/sync/facebook-sheets/route.ts
@@ -66,7 +67,8 @@ export async function middleware(request: NextRequest) {
   const isWebhookRoute = request.nextUrl.pathname.startsWith('/api/leads/inbound') ||
     request.nextUrl.pathname.startsWith('/api/leads/facebook') ||
     request.nextUrl.pathname.startsWith('/api/leads/sync/facebook-sheets') ||
-    request.nextUrl.pathname.startsWith('/api/cron/')
+    request.nextUrl.pathname.startsWith('/api/cron/') ||
+    request.nextUrl.pathname.startsWith('/api/voice/vapi-webhook')
 
   if (isWebhookRoute) {
     return supabaseResponse

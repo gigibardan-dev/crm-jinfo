@@ -5,7 +5,8 @@
  *
  * Tipul `Database` corespunde schemei Postgres curente (tabele: profiles,
  * leads, lead_activities, reminders, notifications, pipeline_stages,
- * lead_sources, lead_attachments — vezi supabase/migrations/*.sql) și e
+ * lead_sources, lead_attachments, call_campaigns, call_lists,
+ * call_list_members, ai_calls — vezi supabase/migrations/*.sql) și e
  * folosit ca generic pe toți clienții Supabase (src/lib/supabase/*.ts).
  * Mai jos în fișier sunt și alias-uri comode per tabel (Lead, Profile,
  * LeadActivity, Reminder, Notification, PipelineStage, LeadSource,
@@ -105,6 +106,11 @@ export type Database = {
           contract_number: string | null
           invoice_number: string | null
           eligible_for_auto_assign: boolean
+          ai_call_status: AiCallStatus | null
+          ai_call_count: number
+          ai_last_call_at: string | null
+          ai_last_call_id: string | null
+          do_not_call: boolean
           created_at: string
           updated_at: string
         }
@@ -145,6 +151,11 @@ export type Database = {
           contract_number?: string | null
           invoice_number?: string | null
           eligible_for_auto_assign?: boolean
+          ai_call_status?: AiCallStatus | null
+          ai_call_count?: number
+          ai_last_call_at?: string | null
+          ai_last_call_id?: string | null
+          do_not_call?: boolean
         }
         Update: {
           first_name?: string | null
@@ -180,6 +191,11 @@ export type Database = {
           contract_number?: string | null
           invoice_number?: string | null
           eligible_for_auto_assign?: boolean
+          ai_call_status?: AiCallStatus | null
+          ai_call_count?: number
+          ai_last_call_at?: string | null
+          ai_last_call_id?: string | null
+          do_not_call?: boolean
         }
         Relationships: [
           {
@@ -203,7 +219,7 @@ export type Database = {
           id: string
           lead_id: string
           user_id: string | null
-          type: 'status_change' | 'comment' | 'assignment' | 'reminder_set' | 'email_sent' | 'call_logged' | 'system' | 'edit'
+          type: 'status_change' | 'comment' | 'assignment' | 'reminder_set' | 'email_sent' | 'call_logged' | 'system' | 'edit' | 'ai_call'
           content: string | null
           metadata: Json | null
           created_at: string
@@ -212,7 +228,7 @@ export type Database = {
           id?: string
           lead_id: string
           user_id?: string | null
-          type: 'status_change' | 'comment' | 'assignment' | 'reminder_set' | 'email_sent' | 'call_logged' | 'system' | 'edit'
+          type: 'status_change' | 'comment' | 'assignment' | 'reminder_set' | 'email_sent' | 'call_logged' | 'system' | 'edit' | 'ai_call'
           content?: string | null
           metadata?: Json | null
         }
@@ -479,6 +495,181 @@ export type Database = {
           },
         ]
       }
+      call_campaigns: {
+        Row: {
+          id: string
+          name: string
+          vapi_assistant_id: string
+          description: string | null
+          is_active: boolean
+          auto_call_enabled: boolean
+          fb_match_campaign: string | null
+          fb_match_form: string | null
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          vapi_assistant_id: string
+          description?: string | null
+          is_active?: boolean
+          auto_call_enabled?: boolean
+          fb_match_campaign?: string | null
+          fb_match_form?: string | null
+          created_by?: string | null
+        }
+        Update: {
+          name?: string
+          vapi_assistant_id?: string
+          description?: string | null
+          is_active?: boolean
+          auto_call_enabled?: boolean
+          fb_match_campaign?: string | null
+          fb_match_form?: string | null
+        }
+        Relationships: []
+      }
+      call_lists: {
+        Row: {
+          id: string
+          name: string
+          campaign_id: string | null
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          campaign_id?: string | null
+          created_by?: string | null
+        }
+        Update: {
+          name?: string
+          campaign_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'call_lists_campaign_id_fkey'
+            columns: ['campaign_id']
+            isOneToOne: false
+            referencedRelation: 'call_campaigns'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      call_list_members: {
+        Row: {
+          list_id: string
+          lead_id: string
+          added_at: string
+        }
+        Insert: {
+          list_id: string
+          lead_id: string
+          added_at?: string
+        }
+        Update: {
+          added_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'call_list_members_list_id_fkey'
+            columns: ['list_id']
+            isOneToOne: false
+            referencedRelation: 'call_lists'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'call_list_members_lead_id_fkey'
+            columns: ['lead_id']
+            isOneToOne: false
+            referencedRelation: 'leads'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      ai_calls: {
+        Row: {
+          id: string
+          lead_id: string
+          campaign_id: string | null
+          list_id: string | null
+          phone_number: string
+          vapi_call_id: string | null
+          status: AiCallRunStatus
+          result: AiCallStatus | null
+          ended_reason: string | null
+          error_message: string | null
+          started_at: string | null
+          ended_at: string | null
+          duration_sec: number | null
+          cost: number | null
+          summary: string | null
+          transcript: string | null
+          recording_url: string | null
+          structured_data: Json | null
+          raw_report: Json | null
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          lead_id: string
+          campaign_id?: string | null
+          list_id?: string | null
+          phone_number: string
+          vapi_call_id?: string | null
+          status?: AiCallRunStatus
+          result?: AiCallStatus | null
+          ended_reason?: string | null
+          error_message?: string | null
+          started_at?: string | null
+          ended_at?: string | null
+          duration_sec?: number | null
+          cost?: number | null
+          summary?: string | null
+          transcript?: string | null
+          recording_url?: string | null
+          structured_data?: Json | null
+          raw_report?: Json | null
+          created_by?: string | null
+        }
+        Update: {
+          vapi_call_id?: string | null
+          status?: AiCallRunStatus
+          result?: AiCallStatus | null
+          ended_reason?: string | null
+          error_message?: string | null
+          started_at?: string | null
+          ended_at?: string | null
+          duration_sec?: number | null
+          cost?: number | null
+          summary?: string | null
+          transcript?: string | null
+          recording_url?: string | null
+          structured_data?: Json | null
+          raw_report?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'ai_calls_lead_id_fkey'
+            columns: ['lead_id']
+            isOneToOne: false
+            referencedRelation: 'leads'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'ai_calls_campaign_id_fkey'
+            columns: ['campaign_id']
+            isOneToOne: false
+            referencedRelation: 'call_campaigns'
+            referencedColumns: ['id']
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -518,6 +709,9 @@ export type PipelineStage = Database['public']['Tables']['pipeline_stages']['Row
 export type LeadSource = Database['public']['Tables']['lead_sources']['Row']
 export type LeadAttachment = Database['public']['Tables']['lead_attachments']['Row']
 export type AppSetting = Database['public']['Tables']['app_settings']['Row']
+export type CallCampaign = Database['public']['Tables']['call_campaigns']['Row']
+export type CallList = Database['public']['Tables']['call_lists']['Row']
+export type AiCall = Database['public']['Tables']['ai_calls']['Row']
 
 // Extended types (with joins)
 export type LeadWithAgent = Lead & {
@@ -530,3 +724,23 @@ export type LeadActivityWithUser = LeadActivity & {
 
 export type UserRole = 'admin' | 'manager' | 'agent'
 export type LeadPriority = 'low' | 'medium' | 'high' | 'urgent'
+
+/**
+ * Calificare AI (leads.ai_call_status / ai_calls.result) — migrarea 013.
+ * Separată de etapa din pipeline: arată rezultatul ULTIMULUI apel AI.
+ * NULL pe lead = neapelat.
+ */
+export type AiCallStatus =
+  | 'queued'
+  | 'in_progress'
+  | 'hot'
+  | 'interested'
+  | 'other_request'
+  | 'callback'
+  | 'not_interested'
+  | 'no_answer'
+  | 'invalid'
+  | 'failed'
+
+/** Starea tehnică a unui apel (ai_calls.status). */
+export type AiCallRunStatus = 'queued' | 'ringing' | 'in_progress' | 'ended' | 'failed' | 'cancelled'
