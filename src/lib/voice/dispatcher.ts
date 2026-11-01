@@ -70,6 +70,8 @@ export type DispatchResult = {
   failed: number
   remaining: number
   outsideHours: boolean
+  /** Eroare internă (ex. interogare eșuată) — afișată în UI / consolă */
+  error?: string
 }
 
 export async function dispatchQueue(admin: Admin): Promise<DispatchResult> {
@@ -95,13 +97,28 @@ export async function dispatchQueue(admin: Admin): Promise<DispatchResult> {
   }
 
   // Cele mai vechi apeluri din coadă, cu asistentul campaniei
-  const { data: next } = await admin
+  // ATENȚIE: între ai_calls și leads există DOUĂ chei străine (ai_calls.lead_id
+  // și leads.ai_last_call_id) — embed-ul trebuie să numească explicit FK-ul,
+  // altfel PostgREST refuză cererea („more than one relationship") și coada
+  // pare goală.
+  const { data: next, error: nextError } = await admin
     .from('ai_calls')
-    .select('id, lead_id, campaign_id, phone_number, call_campaigns(vapi_assistant_id, is_active), leads(first_name, last_name, do_not_call)')
+    .select('id, lead_id, campaign_id, phone_number, call_campaigns(vapi_assistant_id, is_active), leads!ai_calls_lead_id_fkey(first_name, last_name, do_not_call)')
     .eq('status', 'queued')
     .is('vapi_call_id', null)
     .order('created_at', { ascending: true })
     .limit(slots)
+
+  if (nextError) {
+    console.error('[dispatcher] citire coadă eșuată:', nextError.message)
+    return {
+      started: 0,
+      failed: 0,
+      remaining: remainingBefore ?? 0,
+      outsideHours: false,
+      error: `Citirea cozii a eșuat: ${nextError.message}`,
+    }
+  }
 
   let started = 0
   let failed = 0
