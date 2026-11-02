@@ -22,6 +22,11 @@
  * coloanele acceptate (și modelul .xlsx) pornesc din
  * src/lib/leads/import-fields.ts — vezi comentariul de acolo dacă
  * formularul manual „Lead Nou” se modifică vreodată.
+ *
+ * Mod „Listă de apelare AI" (comutator în formular): numele listei + agentul
+ * AI (campania) + opțional „pune direct în coadă". Logica pe server e în
+ * src/lib/voice/import-call-list.ts; aici doar trimitem câmpurile în plus și
+ * afișăm rezumatul listei deasupra raportului per rând.
  */
 
 import { useEffect, useState } from 'react'
@@ -31,10 +36,10 @@ import { createClient } from '@/lib/supabase/client'
 import { Header } from '@/components/layout/Header'
 import type { LeadSource } from '@/lib/types/database'
 import type { ImportApiResponse } from '@/lib/leads/import-parse'
-import { ImportUploadForm } from '@/components/leads/import/ImportUploadForm'
+import { ImportUploadForm, type ImportMode } from '@/components/leads/import/ImportUploadForm'
 import { ImportSummaryCards } from '@/components/leads/import/ImportSummaryCards'
 import { ImportResultsTable, type ImportResultsFilter } from '@/components/leads/import/ImportResultsTable'
-import { RotateCcw } from 'lucide-react'
+import { RotateCcw, PhoneCall, AlertTriangle } from 'lucide-react'
 
 export default function LeadsImportPage() {
   const { isAdminOrManager } = useAuth()
@@ -49,6 +54,13 @@ export default function LeadsImportPage() {
   const [result, setResult] = useState<ImportApiResponse | null>(null)
   const [resultsFilter, setResultsFilter] = useState<ImportResultsFilter>('all')
 
+  // --- Mod „Listă de apelare AI" ---
+  const [mode, setMode] = useState<ImportMode>('leads')
+  const [campaigns, setCampaigns] = useState<{ id: string; name: string }[]>([])
+  const [callListName, setCallListName] = useState('')
+  const [callCampaignId, setCallCampaignId] = useState('')
+  const [callEnqueue, setCallEnqueue] = useState(false)
+
   useEffect(() => {
     if (!isAdminOrManager) return
     supabase.from('lead_sources').select('*').eq('is_active', true).order('name')
@@ -59,6 +71,8 @@ export default function LeadsImportPage() {
           setDefaultSource(other?.slug || data[0].slug)
         }
       })
+    supabase.from('call_campaigns').select('id, name').eq('is_active', true).order('created_at', { ascending: false })
+      .then(({ data }) => setCampaigns(data || []))
   }, [supabase, isAdminOrManager])
 
   function handleFileSelected(newFile: File | null) {
@@ -75,7 +89,15 @@ export default function LeadsImportPage() {
     try {
       const formData = new FormData()
       formData.append('file', file)
-      formData.append('defaultSource', defaultSource)
+      if (mode === 'call_list') {
+        // Rândurile fără coloana „Sursă" primesc sursa „Listă apelare" (migrarea 013)
+        formData.append('defaultSource', 'lista_apelare')
+        formData.append('callListName', callListName.trim())
+        formData.append('callCampaignId', callCampaignId)
+        formData.append('callEnqueue', String(callEnqueue))
+      } else {
+        formData.append('defaultSource', defaultSource)
+      }
 
       const res = await fetch('/api/leads/import', { method: 'POST', body: formData })
       const data = await res.json()
@@ -88,7 +110,14 @@ export default function LeadsImportPage() {
 
       setResult(data)
       setResultsFilter('all')
-      toast({
+      if (data.callList) {
+        const cl = data.callList as NonNullable<ImportApiResponse['callList']>
+        toast({
+          title: `Lista „${cl.name}": ${cl.created + cl.linked} numere`,
+          description: `${cl.created} leaduri noi, ${cl.linked} existente adăugate în listă${cl.enqueue.requested ? `, ${cl.enqueue.queued} puse în coada de apeluri` : ''}.`,
+          variant: cl.enqueue.error ? 'warning' : 'success',
+        })
+      } else toast({
         title: `${data.imported} leaduri importate`,
         variant: data.skipped > 0 ? 'warning' : 'success',
         description: data.skipped > 0 ? `${data.skipped} rânduri ignorate — vezi raportul.` : undefined,
@@ -127,6 +156,15 @@ export default function LeadsImportPage() {
         </p>
 
         <ImportUploadForm
+          mode={mode}
+          onModeChange={setMode}
+          campaigns={campaigns}
+          callListName={callListName}
+          onCallListNameChange={setCallListName}
+          callCampaignId={callCampaignId}
+          onCallCampaignIdChange={setCallCampaignId}
+          callEnqueue={callEnqueue}
+          onCallEnqueueChange={setCallEnqueue}
           sources={sources}
           defaultSource={defaultSource}
           onDefaultSourceChange={setDefaultSource}
@@ -151,6 +189,37 @@ export default function LeadsImportPage() {
                 <RotateCcw size={12} /> Importă alt fișier
               </button>
             </div>
+
+            {/* Rezumatul listei de apelare AI */}
+            {result.callList && (
+              <div className="bg-violet-50 dark:bg-violet-950 border border-violet-100 dark:border-violet-900 rounded-xl p-4 text-sm text-violet-900 dark:text-violet-100 space-y-1.5">
+                <p className="font-medium flex items-center gap-1.5">
+                  <PhoneCall size={14} /> Lista „{result.callList.name}” · agent AI: {result.callList.campaignName}
+                </p>
+                <p>
+                  {result.callList.created} leaduri noi create · {result.callList.linked} numere existau deja în CRM și au
+                  fost adăugate în listă (fără duplicat).
+                </p>
+                {result.callList.enqueue.requested ? (
+                  <p>
+                    {result.callList.enqueue.queued} puse în coada de apeluri
+                    {result.callList.enqueue.outsideHours && ' — suntem în afara intervalului orar, pornesc când reiei coada în program'}
+                    {result.callList.enqueue.skipped.length > 0 &&
+                      `. Nepuse în coadă: ${result.callList.enqueue.skipped.map((s) => `${s.count} × ${s.reason}`).join(' · ')}`}
+                    .
+                  </p>
+                ) : (
+                  <p className="text-violet-700/80 dark:text-violet-300/80">
+                    Nu au fost puse în coadă. Le găsești în Pipeline → Listă, de unde le selectezi și le trimiți la apel.
+                  </p>
+                )}
+                {result.callList.enqueue.error && (
+                  <p className="flex items-start gap-1.5 text-red-700 dark:text-red-400">
+                    <AlertTriangle size={13} className="shrink-0 mt-0.5" /> {result.callList.enqueue.error}
+                  </p>
+                )}
+              </div>
+            )}
 
             <ImportSummaryCards
               totalRows={result.totalRows}

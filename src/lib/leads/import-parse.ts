@@ -44,6 +44,26 @@ export interface ImportApiResponse {
   /** Formatul de fișier detectat — 'model' = .xlsx-ul nostru, 'facebook' = exportul brut .csv/.xls din Facebook Lead Ads. */
   sourceFormat: 'model' | 'facebook'
   rows: ImportRowReport[]
+  /** Doar la importul „Listă de apelare AI" — vezi src/lib/voice/import-call-list.ts */
+  callList?: CallListImportSummary
+}
+
+export interface CallListImportSummary {
+  id: string
+  name: string
+  campaignName: string
+  /** Leaduri noi create din listă */
+  created: number
+  /** Numere care existau deja în CRM — leadul existent a fost adăugat în listă */
+  linked: number
+  /** Doar dacă s-a cerut „Pune direct în coada de apeluri" */
+  enqueue: {
+    requested: boolean
+    queued: number
+    skipped: { reason: string; count: number }[]
+    outsideHours: boolean
+    error?: string
+  }
 }
 
 export interface ImportIssue {

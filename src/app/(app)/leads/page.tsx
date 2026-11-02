@@ -95,6 +95,10 @@ function PipelinePageContent() {
   const [filterPriority, setFilterPriority] = useState<string>('all')
   // Calificare AI: 'all' | 'none' | 'called' | AiCallStatus (vezi PipelineFilterBar)
   const [filterAiCall, setFilterAiCall] = useState<string>('all')
+  // Listă de apelare AI: 'all' sau id listă → membrii listei (call_list_members)
+  const [callLists, setCallLists] = useState<{ id: string; name: string }[]>([])
+  const [filterCallList, setFilterCallList] = useState<string>('all')
+  const [callListLeadIds, setCallListLeadIds] = useState<Set<string> | null>(null)
 
   // --- Selecție multiplă (Listă, doar admin/manager) → coada de apeluri AI ---
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -167,6 +171,33 @@ function PipelinePageContent() {
 
   useEffect(() => { if (profile?.id) fetchData() }, [profile?.id, fetchData])
 
+  // Listele de apelare AI (doar admin/manager — RLS oricum le ascunde agenților)
+  useEffect(() => {
+    if (!isAdminOrManager) return
+    supabase.from('call_lists').select('id, name').order('created_at', { ascending: false })
+      .then(({ data }) => setCallLists(data || []))
+  }, [supabase, isAdminOrManager])
+
+  // Membrii listei alese (paginat — PostgREST întoarce maxim 1000 de rânduri per cerere)
+  useEffect(() => {
+    if (filterCallList === 'all') return
+    let cancelled = false
+    ;(async () => {
+      const ids = new Set<string>()
+      for (let from = 0; ; from += 1000) {
+        const { data } = await supabase
+          .from('call_list_members')
+          .select('lead_id')
+          .eq('list_id', filterCallList)
+          .range(from, from + 999)
+        for (const r of data || []) ids.add(r.lead_id)
+        if (!data || data.length < 1000) break
+      }
+      if (!cancelled) setCallListLeadIds(ids)
+    })()
+    return () => { cancelled = true }
+  }, [supabase, filterCallList])
+
   // Realtime — orice schimbare pe leaduri (inclusiv realocare) sau remindere
   // (ex. marcat completat) reface lista, ca datele să rămână la zi.
   useEffect(() => {
@@ -203,11 +234,12 @@ function PipelinePageContent() {
       if (filterAiCall === 'none' && lead.ai_call_status) return false
       if (filterAiCall === 'called' && !lead.ai_call_status) return false
       if (!['all', 'none', 'called'].includes(filterAiCall) && lead.ai_call_status !== filterAiCall) return false
+      if (filterCallList !== 'all' && !callListLeadIds?.has(lead.id)) return false
       if (filterDateFrom && lead.created_at < filterDateFrom) return false
       if (filterDateTo && lead.created_at > filterDateTo + 'T23:59:59') return false
       return true
     })
-  }, [leads, filterAgent, filterSource, filterStatus, filterRemindersDue, reminderLeadIds, filterStagnant, filterPriority, filterAiCall, filterDateFrom, filterDateTo])
+  }, [leads, filterAgent, filterSource, filterStatus, filterRemindersDue, reminderLeadIds, filterStagnant, filterPriority, filterAiCall, filterCallList, callListLeadIds, filterDateFrom, filterDateTo])
 
   // Listă sortată — doar când userul a ales explicit sortare pe activitate;
   // altfel păstrează ordinea din filteredLeads (created_at desc, din query).
@@ -223,14 +255,14 @@ function PipelinePageContent() {
   }, [filteredLeads, sortByActivity])
 
   // Reset page when filters change
-  useEffect(() => { setCurrentPage(1) }, [filterAgent, filterSource, filterStatus, filterRemindersDue, filterStagnant, filterPriority, filterAiCall, filterDateFrom, filterDateTo, sortByActivity])
+  useEffect(() => { setCurrentPage(1) }, [filterAgent, filterSource, filterStatus, filterRemindersDue, filterStagnant, filterPriority, filterAiCall, filterCallList, filterDateFrom, filterDateTo, sortByActivity])
 
   const hasActiveFilters = filterAgent !== 'all' || filterSource !== 'all' || filterStatus !== 'all' || filterRemindersDue
-    || filterStagnant || filterPriority !== 'all' || filterAiCall !== 'all' || !!filterDateFrom || !!filterDateTo
+    || filterStagnant || filterPriority !== 'all' || filterAiCall !== 'all' || filterCallList !== 'all' || !!filterDateFrom || !!filterDateTo
 
   function clearFilters() {
     setFilterAgent('all'); setFilterSource('all'); setFilterStatus('all'); setFilterRemindersDue(false)
-    setFilterStagnant(false); setFilterPriority('all'); setFilterAiCall('all'); setFilterDateFrom(''); setFilterDateTo('')
+    setFilterStagnant(false); setFilterPriority('all'); setFilterAiCall('all'); setFilterCallList('all'); setFilterDateFrom(''); setFilterDateTo('')
     setFilterMonth(''); setFilterYear(String(new Date().getFullYear()))
   }
 
@@ -332,6 +364,9 @@ function PipelinePageContent() {
             onFilterPriorityChange={setFilterPriority}
             filterAiCall={filterAiCall}
             onFilterAiCallChange={setFilterAiCall}
+            callLists={callLists}
+            filterCallList={filterCallList}
+            onFilterCallListChange={(v) => { setCallListLeadIds(null); setFilterCallList(v) }}
             filterDateFrom={filterDateFrom}
             onFilterDateFromChange={handleDateFromChange}
             filterDateTo={filterDateTo}
@@ -375,6 +410,7 @@ function PipelinePageContent() {
             onSelectAllFiltered={() => setSelectedIds(new Set(filteredLeads.map((l) => l.id)))}
             onClear={() => setSelectedIds(new Set())}
             onDone={fetchData}
+            listId={filterCallList !== 'all' ? filterCallList : null}
           />
         )}
       </div>

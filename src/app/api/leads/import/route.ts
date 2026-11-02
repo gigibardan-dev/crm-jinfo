@@ -35,6 +35,13 @@
  * is_organic, lead_status etc.) e păstrat integral în
  * `leads.source_raw_data.facebook`, ca nimic să nu se piardă.
  *
+ * LISTĂ DE APELARE AI — dacă formularul trimite și `callListName` +
+ * `callCampaignId` (+ opțional `callEnqueue=true`), după parsare rândurile
+ * merg pe ramura din `src/lib/voice/import-call-list.ts`: listă nouă legată
+ * de agentul AI ales, telefon obligatoriu, numerele existente în CRM NU
+ * creează lead nou (leadul existent e adăugat în listă), opțional direct în
+ * coada de apeluri. Răspunsul are în plus `callList` (rezumatul listei).
+ *
  * Răspuns: JSON cu rezumat (totalRows/imported/skipped/withWarnings) +
  * detaliu per rând (rowNumber, displayName, status, warnings/skipReason) —
  * folosit direct de `src/app/(app)/leads/import/page.tsx` pentru raport.
@@ -47,6 +54,7 @@ import { readSheet } from 'read-excel-file/node'
 import { matchHeaders, countMatchedHeaders, parseImportRow, type ParsedImportRow, type ImportApiResponse } from '@/lib/leads/import-parse'
 import { IMPORT_FIELDS } from '@/lib/leads/import-fields'
 import { parseFacebookExport, FacebookFormatError } from '@/lib/leads/import-facebook'
+import { importCallList } from '@/lib/voice/import-call-list'
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
 const MAX_DATA_ROWS = 2000
@@ -72,6 +80,10 @@ export async function POST(request: NextRequest) {
   const formData = await request.formData()
   const file = formData.get('file')
   const defaultSource = String(formData.get('defaultSource') || '')
+  const callListName = String(formData.get('callListName') || '').trim()
+  const callCampaignId = String(formData.get('callCampaignId') || '').trim()
+  const callEnqueue = formData.get('callEnqueue') === 'true'
+  const isCallList = !!callListName || !!callCampaignId
 
   if (!(file instanceof File)) {
     return NextResponse.json({ error: 'Niciun fișier trimis.' }, { status: 400 })
@@ -87,6 +99,9 @@ export async function POST(request: NextRequest) {
   }
   if (!defaultSource) {
     return NextResponse.json({ error: 'Lipsește sursa implicită.' }, { status: 400 })
+  }
+  if (isCallList && (!callListName || !callCampaignId)) {
+    return NextResponse.json({ error: 'Pentru o listă de apelare completează numele listei și alege agentul AI.' }, { status: 400 })
   }
 
   const adminClient = createAdminClient()
@@ -155,6 +170,39 @@ export async function POST(request: NextRequest) {
   const parsedRows = dataRows
     .map((row, i) => parseImportRow(row, i + 2, columnIndex, sources, defaultSource))
     .filter((r): r is ParsedImportRow => r !== null) // scoate rândurile complet goale, silențios
+
+  // --- Listă de apelare AI: ramură separată (dubluri → lead existent adăugat în listă) ---
+  if (isCallList) {
+    const res = await importCallList({
+      admin: adminClient,
+      userId: user.id,
+      rows: parsedRows,
+      listName: callListName,
+      campaignId: callCampaignId,
+      enqueue: callEnqueue,
+      sourceFormat,
+      facebookRawByRowNumber,
+    })
+    if (!res.ok) return NextResponse.json({ error: res.error }, { status: res.status })
+
+    const callRowsReport = parsedRows.map((row) => ({
+      rowNumber: row.rowNumber,
+      displayName: row.displayName,
+      status: row.skipped ? 'skipped' as const : 'imported' as const,
+      skipReason: row.skipReason,
+      warnings: row.warnings,
+    }))
+    const callResponse: ImportApiResponse = {
+      totalRows: parsedRows.length,
+      imported: callRowsReport.filter((r) => r.status === 'imported').length,
+      skipped: callRowsReport.filter((r) => r.status === 'skipped').length,
+      withWarnings: callRowsReport.filter((r) => r.status === 'imported' && r.warnings.length > 0).length,
+      sourceFormat,
+      rows: callRowsReport,
+      callList: res.summary,
+    }
+    return NextResponse.json(callResponse)
+  }
 
   const importable = parsedRows.filter((r) => !r.skipped)
 

@@ -62,6 +62,10 @@ interface PipelineFilterBarProps {
   /** Calificare AI: 'all' | 'none' (neapelat) | 'called' (sunat, orice rezultat) | AiCallStatus */
   filterAiCall: string
   onFilterAiCallChange: (value: string) => void
+  /** Liste de apelare AI (doar admin/manager) — 'all' sau id-ul listei */
+  callLists: { id: string; name: string }[]
+  filterCallList: string
+  onFilterCallListChange: (value: string) => void
   filterDateFrom: string
   onFilterDateFromChange: (value: string) => void
   filterDateTo: string
@@ -83,6 +87,7 @@ export function PipelineFilterBar({
   filterStagnant, onFilterStagnantChange,
   filterPriority, onFilterPriorityChange,
   filterAiCall, onFilterAiCallChange,
+  callLists, filterCallList, onFilterCallListChange,
   filterDateFrom, onFilterDateFromChange,
   filterDateTo, onFilterDateToChange,
   filterMonth, onFilterMonthChange,
@@ -124,6 +129,13 @@ export function PipelineFilterBar({
           <option key={k} value={k}>AI: {AI_CALL_STATUS_LABELS[k]}</option>
         ))}
       </select>
+      {/* Listă de apelare importată (include și leadurile existente adăugate în listă) */}
+      {isAdminOrManager && callLists.length > 0 && (
+        <select value={filterCallList} onChange={(e) => onFilterCallListChange(e.target.value)} className={selectClass}>
+          <option value="all">Orice listă de apelare</option>
+          {callLists.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+        </select>
+      )}
       {/* Interval manual — pe telefon fiecare câmp de dată stă pe rândul lui,
           altfel nu încap unul lângă altul (lățime minimă impusă de browser). */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 w-full sm:w-auto text-sm text-slate-500 dark:text-slate-400">

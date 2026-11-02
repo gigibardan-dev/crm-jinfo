@@ -30,9 +30,11 @@ interface AiCallBulkBarProps {
   onSelectAllFiltered: () => void
   onClear: () => void
   onDone: () => void
+  /** Lista de apelare filtrată în Pipeline (dacă există) — salvată pe apeluri (ai_calls.list_id) */
+  listId?: string | null
 }
 
-export function AiCallBulkBar({ selectedIds, filteredCount, onSelectAllFiltered, onClear, onDone }: AiCallBulkBarProps) {
+export function AiCallBulkBar({ selectedIds, filteredCount, onSelectAllFiltered, onClear, onDone, listId }: AiCallBulkBarProps) {
   const supabase = createClient()
   const { toast } = useToast()
   const [campaigns, setCampaigns] = useState<{ id: string; name: string }[]>([])
@@ -76,7 +78,7 @@ export function AiCallBulkBar({ selectedIds, filteredCount, onSelectAllFiltered,
         const res = await fetch('/api/voice/calls', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ lead_ids: selectedIds.slice(i, i + CHUNK), campaign_id: campaignId }),
+          body: JSON.stringify({ lead_ids: selectedIds.slice(i, i + CHUNK), campaign_id: campaignId, list_id: listId || null }),
         })
         const data = await res.json()
         if (!res.ok) {

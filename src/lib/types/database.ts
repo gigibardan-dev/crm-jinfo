@@ -687,6 +687,19 @@ export type Database = {
         Args: Record<string, never>
         Returns: boolean
       }
+      // Migrarea 014 — doar service_role (import liste de apelare)
+      find_leads_by_phone_suffix: {
+        Args: { suffixes: string[] }
+        Returns: {
+          id: string
+          phone: string | null
+          first_name: string | null
+          last_name: string | null
+          do_not_call: boolean
+          created_at: string
+          phone_suffix: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

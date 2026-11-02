@@ -20,16 +20,13 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { normalizePhoneE164 } from '@/lib/voice/phone'
+import { enqueueLeads } from '@/lib/voice/enqueue'
 import { dispatchQueue, isWithinCallingHours } from '@/lib/voice/dispatcher'
 import { getVapiConfigError } from '@/lib/voice/vapi'
 import { requireAdminOrManager } from '@/lib/voice/auth'
 import type { AiCallStatus } from '@/lib/types/database'
 
 const MAX_PER_REQUEST = 200
-const RECALL_GUARD_HOURS = 24
-
-type Skipped = { lead_id: string; reason: string }
 
 export async function POST(request: NextRequest) {
   const auth = await requireAdminOrManager()
@@ -52,70 +49,14 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient()
 
-  const { data: campaign } = await admin
-    .from('call_campaigns')
-    .select('id, is_active')
-    .eq('id', campaignId)
-    .single()
-  if (!campaign) return NextResponse.json({ error: 'Campania nu există' }, { status: 404 })
-  if (!campaign.is_active) return NextResponse.json({ error: 'Campania este dezactivată' }, { status: 400 })
-
-  const { data: leads, error: leadsError } = await admin
-    .from('leads')
-    .select('id, phone, do_not_call')
-    .in('id', leadIds)
-  if (leadsError) return NextResponse.json({ error: leadsError.message }, { status: 500 })
-
-  // Apeluri active (în coadă / în desfășurare) pentru oricare din leaduri
-  const { data: activeCalls } = await admin
-    .from('ai_calls')
-    .select('lead_id')
-    .in('lead_id', leadIds)
-    .in('status', ['queued', 'ringing', 'in_progress'])
-  const activeSet = new Set((activeCalls ?? []).map((c) => c.lead_id))
-
-  // Sunate recent pe aceeași campanie
-  const since = new Date(Date.now() - RECALL_GUARD_HOURS * 3600_000).toISOString()
-  const { data: recentCalls } = force
-    ? { data: [] as { lead_id: string }[] }
-    : await admin
-        .from('ai_calls')
-        .select('lead_id')
-        .in('lead_id', leadIds)
-        .eq('campaign_id', campaignId)
-        .eq('status', 'ended')
-        .gte('created_at', since)
-  const recentSet = new Set((recentCalls ?? []).map((c) => c.lead_id))
-
-  const skipped: Skipped[] = []
-  const rows: { lead_id: string; campaign_id: string; list_id: string | null; phone_number: string; created_by: string }[] = []
-
-  const foundIds = new Set((leads ?? []).map((l) => l.id))
-  for (const id of leadIds) if (!foundIds.has(id)) skipped.push({ lead_id: id, reason: 'Lead inexistent' })
-
-  for (const lead of leads ?? []) {
-    const phone = normalizePhoneE164(lead.phone)
-    if (lead.do_not_call) skipped.push({ lead_id: lead.id, reason: 'A cerut să nu mai fie sunat' })
-    else if (!phone) skipped.push({ lead_id: lead.id, reason: 'Telefon lipsă sau invalid' })
-    else if (activeSet.has(lead.id)) skipped.push({ lead_id: lead.id, reason: 'Deja în coadă sau în apel' })
-    else if (recentSet.has(lead.id)) skipped.push({ lead_id: lead.id, reason: `Sunat pe această campanie în ultimele ${RECALL_GUARD_HOURS}h` })
-    else rows.push({ lead_id: lead.id, campaign_id: campaignId, list_id: listId, phone_number: phone, created_by: auth.userId })
-  }
-
-  if (rows.length) {
-    const { error: insertError } = await admin.from('ai_calls').insert(rows)
-    if (insertError) return NextResponse.json({ error: insertError.message }, { status: 500 })
-    await admin
-      .from('leads')
-      .update({ ai_call_status: 'queued' })
-      .in('id', rows.map((r) => r.lead_id))
-  }
+  const result = await enqueueLeads(admin, { leadIds, campaignId, listId, force, userId: auth.userId })
+  if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status })
 
   const dispatch = await dispatchQueue(admin)
 
   return NextResponse.json({
-    queued: rows.length,
-    skipped,
+    queued: result.queued,
+    skipped: result.skipped,
     dispatch,
     outsideHours: !isWithinCallingHours(),
   })
