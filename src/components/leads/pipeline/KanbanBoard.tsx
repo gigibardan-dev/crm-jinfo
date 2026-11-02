@@ -6,7 +6,7 @@
  * Vizualizarea Kanban din pagina Pipeline: o coloană per pipeline stage
  * (vizibile: cele non-terminale + won/lost), fiecare cu scroll propriu și
  * cardurile de lead (prioritate, sursă, nume, destinație, agentul alocat,
- * ultima activitate, indicator reminder). Pur prezentațională — primește
+ * ultima activitate, indicator reminder, Calificare AI). Pur prezentațională — primește
  * lista deja filtrată și stage-urile vizibile. Numele agentului se
  * actualizează automat la realocare (pagina părinte reface fetch-ul pe
  * orice schimbare din tabela `leads`, deci `leads` ajunge mereu la zi).
@@ -20,6 +20,7 @@ import { Bell, User } from 'lucide-react'
 import { SourceIcon } from '@/components/leads/SourceIcon'
 import { PriorityBadge } from '@/components/leads/PriorityBadge'
 import { StagnantBadge } from '@/components/leads/StagnantBadge'
+import { AiCallStatusBadge } from '@/components/leads/AiCallStatusBadge'
 import type { Lead, PipelineStage, Profile } from '@/lib/types/database'
 import { fullName, timeAgo } from '@/lib/utils'
 
@@ -67,6 +68,12 @@ export function KanbanBoard({ visibleStages, leads, agentsById }: KanbanBoardPro
                       {lead.next_followup_at && <span className="flex items-center gap-0.5"><Bell size={10} /> Reminder</span>}
                     </div>
                     <StagnantBadge status={lead.status} lastInteractionAt={lead.last_interaction_at} className="mt-1.5" />
+                    {/* Calificare AI — leadul a fost deja sunat de asistentul AI */}
+                    {lead.ai_call_status && (
+                      <div className="mt-1.5">
+                        <AiCallStatusBadge status={lead.ai_call_status} />
+                      </div>
+                    )}
                   </Link>
                 )
               })}

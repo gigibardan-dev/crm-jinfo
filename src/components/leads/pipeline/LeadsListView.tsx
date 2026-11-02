@@ -27,11 +27,15 @@ interface LeadsListViewProps {
   /** Sortare pe coloana „Activitate" — opțională, vezi LeadsTable. */
   activitySortDir?: 'asc' | 'desc' | null
   onToggleActivitySort?: () => void
+  /** Selecție multiplă (admin/manager) — vezi LeadsTable. */
+  selectedIds?: Set<string>
+  onToggleSelect?: (id: string) => void
+  onToggleSelectPage?: (ids: string[], select: boolean) => void
 }
 
 export function LeadsListView({
   paginatedLeads, totalFilteredCount, stages, agentsById, currentPage, itemsPerPage, onPageChange, onItemsPerPageChange,
-  activitySortDir, onToggleActivitySort,
+  activitySortDir, onToggleActivitySort, selectedIds, onToggleSelect, onToggleSelectPage,
 }: LeadsListViewProps) {
   return (
     <>
@@ -43,6 +47,9 @@ export function LeadsListView({
             agentsById={agentsById}
             activitySortDir={activitySortDir}
             onToggleActivitySort={onToggleActivitySort}
+            selectedIds={selectedIds}
+            onToggleSelect={onToggleSelect}
+            onToggleSelectPage={onToggleSelectPage}
           />
         </div>
         {totalFilteredCount === 0 && <div className="text-sm text-slate-400 text-center py-12">Niciun lead de afișat.</div>}

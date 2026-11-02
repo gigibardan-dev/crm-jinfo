@@ -6,7 +6,7 @@
  * Pentru fiecare apel AI (cel mai recent sus):
  *   - rezultatul (Calificarea AI), campania, data, durata
  *   - rezumatul + datele extrase (persoane, canal, altă destinație...)
- *   - player pentru înregistrare
+ *   - player pentru înregistrare (prin /api/voice/recording/:id — link semnat)
  *   - conversația completă, formatată ca în Vapi (Lea / Client, cu minutul),
  *     citită din raw_report.artifact.messages; dacă lipsește, din transcript.
  *
@@ -357,9 +357,10 @@ export function AiCallsPanel({ leadId, canCall, onCallFinished }: AiCallsPanelPr
                       </dl>
                     )}
 
-                    {/* Înregistrare */}
+                    {/* Înregistrare — prin /api/voice/recording (link semnat proaspăt de la Vapi;
+                        bucketul e privat, linkul direct răspunde 400) */}
                     {call.recording_url && (
-                      <audio controls preload="none" src={call.recording_url} className="w-full h-10">
+                      <audio controls preload="none" src={`/api/voice/recording/${call.id}`} className="w-full h-10">
                         Browserul nu poate reda înregistrarea.
                       </audio>
                     )}

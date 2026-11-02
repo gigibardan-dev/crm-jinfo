@@ -31,6 +31,8 @@
 
 import { Bell, AlertTriangle } from 'lucide-react'
 import { MONTHS } from '@/lib/utils/constants'
+import { AI_CALL_STATUS_LABELS } from '@/lib/voice/classify'
+import type { AiCallStatus } from '@/lib/types/database'
 import type { Profile, LeadSource, PipelineStage } from '@/lib/types/database'
 
 const selectClass = "px-3 py-1.5 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -57,6 +59,9 @@ interface PipelineFilterBarProps {
   onFilterStagnantChange: (value: boolean) => void
   filterPriority: string
   onFilterPriorityChange: (value: string) => void
+  /** Calificare AI: 'all' | 'none' (neapelat) | 'called' (sunat, orice rezultat) | AiCallStatus */
+  filterAiCall: string
+  onFilterAiCallChange: (value: string) => void
   filterDateFrom: string
   onFilterDateFromChange: (value: string) => void
   filterDateTo: string
@@ -77,6 +82,7 @@ export function PipelineFilterBar({
   filterRemindersDue, onFilterRemindersDueChange,
   filterStagnant, onFilterStagnantChange,
   filterPriority, onFilterPriorityChange,
+  filterAiCall, onFilterAiCallChange,
   filterDateFrom, onFilterDateFromChange,
   filterDateTo, onFilterDateToChange,
   filterMonth, onFilterMonthChange,
@@ -108,6 +114,15 @@ export function PipelineFilterBar({
         <option value="high">Ridicat</option>
         <option value="medium">Mediu</option>
         <option value="low">Scăzut</option>
+      </select>
+      {/* Calificare AI — ex. „Neapelat de AI" ca să nu fie sunați aceiași oameni de două ori */}
+      <select value={filterAiCall} onChange={(e) => onFilterAiCallChange(e.target.value)} className={selectClass}>
+        <option value="all">Apel AI: oricare</option>
+        <option value="none">Neapelat de AI</option>
+        <option value="called">Sunat de AI (orice rezultat)</option>
+        {(Object.keys(AI_CALL_STATUS_LABELS) as AiCallStatus[]).map((k) => (
+          <option key={k} value={k}>AI: {AI_CALL_STATUS_LABELS[k]}</option>
+        ))}
       </select>
       {/* Interval manual — pe telefon fiecare câmp de dată stă pe rândul lui,
           altfel nu încap unul lângă altul (lățime minimă impusă de browser). */}

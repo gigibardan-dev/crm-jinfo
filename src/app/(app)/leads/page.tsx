@@ -34,6 +34,7 @@ import { PipelineToolbar, type PipelineViewMode } from '@/components/leads/pipel
 import { PipelineFilterBar } from '@/components/leads/pipeline/PipelineFilterBar'
 import { KanbanBoard } from '@/components/leads/pipeline/KanbanBoard'
 import { LeadsListView } from '@/components/leads/pipeline/LeadsListView'
+import { AiCallBulkBar } from '@/components/leads/pipeline/AiCallBulkBar'
 import { WonValueModal } from '@/components/leads/lead-detail/LeadActionModals'
 import { type WonDetails, EMPTY_WON_DETAILS, buildWonUpdate, formatWonNote } from '@/lib/types/wonDetails'
 
@@ -92,6 +93,29 @@ function PipelinePageContent() {
   const [filterRemindersDue, setFilterRemindersDue] = useState<boolean>(initialRemindersDue)
   const [filterStagnant, setFilterStagnant] = useState<boolean>(initialStagnant)
   const [filterPriority, setFilterPriority] = useState<string>('all')
+  // Calificare AI: 'all' | 'none' | 'called' | AiCallStatus (vezi PipelineFilterBar)
+  const [filterAiCall, setFilterAiCall] = useState<string>('all')
+
+  // --- Selecție multiplă (Listă, doar admin/manager) → coada de apeluri AI ---
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+  function toggleSelectPage(ids: string[], select: boolean) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      for (const id of ids) {
+        if (select) next.add(id)
+        else next.delete(id)
+      }
+      return next
+    })
+  }
   const [filterDateFrom, setFilterDateFrom] = useState<string>('')
   const [filterDateTo, setFilterDateTo] = useState<string>('')
   // Shortcut „Lună întreagă" din PipelineFilterBar — scrie direct în
@@ -176,11 +200,14 @@ function PipelinePageContent() {
       if (filterRemindersDue && !reminderLeadIds.has(lead.id)) return false
       if (filterStagnant && !getStagnantInfo(lead.status, lead.last_interaction_at)) return false
       if (filterPriority !== 'all' && lead.priority !== filterPriority) return false
+      if (filterAiCall === 'none' && lead.ai_call_status) return false
+      if (filterAiCall === 'called' && !lead.ai_call_status) return false
+      if (!['all', 'none', 'called'].includes(filterAiCall) && lead.ai_call_status !== filterAiCall) return false
       if (filterDateFrom && lead.created_at < filterDateFrom) return false
       if (filterDateTo && lead.created_at > filterDateTo + 'T23:59:59') return false
       return true
     })
-  }, [leads, filterAgent, filterSource, filterStatus, filterRemindersDue, reminderLeadIds, filterStagnant, filterPriority, filterDateFrom, filterDateTo])
+  }, [leads, filterAgent, filterSource, filterStatus, filterRemindersDue, reminderLeadIds, filterStagnant, filterPriority, filterAiCall, filterDateFrom, filterDateTo])
 
   // Listă sortată — doar când userul a ales explicit sortare pe activitate;
   // altfel păstrează ordinea din filteredLeads (created_at desc, din query).
@@ -196,14 +223,14 @@ function PipelinePageContent() {
   }, [filteredLeads, sortByActivity])
 
   // Reset page when filters change
-  useEffect(() => { setCurrentPage(1) }, [filterAgent, filterSource, filterStatus, filterRemindersDue, filterStagnant, filterPriority, filterDateFrom, filterDateTo, sortByActivity])
+  useEffect(() => { setCurrentPage(1) }, [filterAgent, filterSource, filterStatus, filterRemindersDue, filterStagnant, filterPriority, filterAiCall, filterDateFrom, filterDateTo, sortByActivity])
 
   const hasActiveFilters = filterAgent !== 'all' || filterSource !== 'all' || filterStatus !== 'all' || filterRemindersDue
-    || filterStagnant || filterPriority !== 'all' || !!filterDateFrom || !!filterDateTo
+    || filterStagnant || filterPriority !== 'all' || filterAiCall !== 'all' || !!filterDateFrom || !!filterDateTo
 
   function clearFilters() {
     setFilterAgent('all'); setFilterSource('all'); setFilterStatus('all'); setFilterRemindersDue(false)
-    setFilterStagnant(false); setFilterPriority('all'); setFilterDateFrom(''); setFilterDateTo('')
+    setFilterStagnant(false); setFilterPriority('all'); setFilterAiCall('all'); setFilterDateFrom(''); setFilterDateTo('')
     setFilterMonth(''); setFilterYear(String(new Date().getFullYear()))
   }
 
@@ -230,6 +257,13 @@ function PipelinePageContent() {
     setFilterYear(year)
     if (filterMonth) applyMonthYear(filterMonth, year) // anul singur, fără lună aleasă, nu filtrează nimic
   }
+
+  // Selecția efectivă = doar leadurile încă vizibile după filtre (dacă userul
+  // schimbă filtrele după ce a bifat, cele ascunse nu mai sunt trimise la apel).
+  const visibleSelectedIds = useMemo(
+    () => filteredLeads.filter((l) => selectedIds.has(l.id)).map((l) => l.id),
+    [filteredLeads, selectedIds]
+  )
 
   // --- Pagination slicing (list view only) ---
   const paginatedLeads = useMemo(() => {
@@ -296,6 +330,8 @@ function PipelinePageContent() {
             onFilterStagnantChange={setFilterStagnant}
             filterPriority={filterPriority}
             onFilterPriorityChange={setFilterPriority}
+            filterAiCall={filterAiCall}
+            onFilterAiCallChange={setFilterAiCall}
             filterDateFrom={filterDateFrom}
             onFilterDateFromChange={handleDateFromChange}
             filterDateTo={filterDateTo}
@@ -325,6 +361,20 @@ function PipelinePageContent() {
             onItemsPerPageChange={setItemsPerPage}
             activitySortDir={sortByActivity}
             onToggleActivitySort={toggleActivitySort}
+            selectedIds={isAdminOrManager ? selectedIds : undefined}
+            onToggleSelect={isAdminOrManager ? toggleSelect : undefined}
+            onToggleSelectPage={isAdminOrManager ? toggleSelectPage : undefined}
+          />
+        )}
+
+        {/* Selecție multiplă → coada de apeluri AI (doar Listă, admin/manager) */}
+        {viewMode === 'list' && isAdminOrManager && (
+          <AiCallBulkBar
+            selectedIds={visibleSelectedIds}
+            filteredCount={filteredLeads.length}
+            onSelectAllFiltered={() => setSelectedIds(new Set(filteredLeads.map((l) => l.id)))}
+            onClear={() => setSelectedIds(new Set())}
+            onDone={fetchData}
           />
         )}
       </div>

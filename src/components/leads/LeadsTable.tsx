@@ -23,6 +23,14 @@
  * `onToggleActivitySort` — folosit din Pipeline (LeadsListView). Fără acest
  * prop antetul rămâne text simplu, needitat (ex. pagina de profil agent),
  * ca să nu apară un buton de sortare care nu face nimic.
+ *
+ * Selecție multiplă (checkbox pe fiecare rând + „toate de pe pagină") —
+ * DOAR când i se dau `selectedIds` + `onToggleSelect` (Pipeline → Listă,
+ * pentru admin/manager, folosită la „Adaugă în coada de apeluri AI").
+ *
+ * Sub nume apare badge-ul „Calificare AI" (ex. „Fierbinte", „Nu răspunde")
+ * pentru leadurile deja sunate de asistentul AI — ca să nu fie sunate din
+ * nou din greșeală.
  */
 
 'use client'
@@ -33,6 +41,7 @@ import { SourceIcon } from '@/components/leads/SourceIcon'
 import { PriorityBadge } from '@/components/leads/PriorityBadge'
 import { StatusBadge } from '@/components/leads/StatusBadge'
 import { StagnantBadge } from '@/components/leads/StagnantBadge'
+import { AiCallStatusBadge } from '@/components/leads/AiCallStatusBadge'
 import type { Lead, PipelineStage, Profile } from '@/lib/types/database'
 import { fullName, timeAgo } from '@/lib/utils'
 
@@ -43,15 +52,35 @@ interface LeadsTableProps {
   /** Sortare pe coloana „Activitate" — opțională, vezi comentariul de sus. */
   activitySortDir?: 'asc' | 'desc' | null
   onToggleActivitySort?: () => void
+  /** Selecție multiplă — opțională, vezi comentariul de sus. */
+  selectedIds?: Set<string>
+  onToggleSelect?: (id: string) => void
+  onToggleSelectPage?: (ids: string[], select: boolean) => void
 }
 
-export function LeadsTable({ leads, stages, agentsById, activitySortDir, onToggleActivitySort }: LeadsTableProps) {
+export function LeadsTable({
+  leads, stages, agentsById, activitySortDir, onToggleActivitySort, selectedIds, onToggleSelect, onToggleSelectPage,
+}: LeadsTableProps) {
   const showAgentColumn = !!agentsById
+  const selectable = !!selectedIds && !!onToggleSelect
+  const pageIds = leads.map((l) => l.id)
+  const allPageSelected = selectable && pageIds.length > 0 && pageIds.every((id) => selectedIds!.has(id))
 
   return (
     <table className={`w-full ${showAgentColumn ? 'min-w-[760px]' : 'min-w-[640px]'} text-sm`}>
       <thead>
         <tr className="border-b border-slate-100 dark:border-slate-800 text-left">
+          {selectable && (
+            <th className="pl-4 py-3 w-8">
+              <input
+                type="checkbox"
+                checked={allPageSelected}
+                onChange={() => onToggleSelectPage?.(pageIds, !allPageSelected)}
+                className="rounded border-slate-300 dark:border-slate-600"
+                aria-label="Selectează toate leadurile de pe pagină"
+              />
+            </th>
+          )}
           <th className="px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Nume</th>
           <th className="px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Destinație</th>
           <th className="px-4 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Sursă</th>
@@ -80,11 +109,32 @@ export function LeadsTable({ leads, stages, agentsById, activitySortDir, onToggl
           const stage = stages.find((s) => s.slug === lead.status)
           const agent = showAgentColumn && lead.assigned_to ? agentsById?.[lead.assigned_to] : undefined
           return (
-            <tr key={lead.id} className="border-b border-slate-50 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+            <tr
+              key={lead.id}
+              className={`border-b border-slate-50 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${
+                selectable && selectedIds!.has(lead.id) ? 'bg-blue-50/60 dark:bg-blue-950/40' : ''
+              }`}
+            >
+              {selectable && (
+                <td className="pl-4 py-3 w-8">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds!.has(lead.id)}
+                    onChange={() => onToggleSelect!(lead.id)}
+                    className="rounded border-slate-300 dark:border-slate-600"
+                    aria-label={`Selectează ${fullName(lead.first_name, lead.last_name)}`}
+                  />
+                </td>
+              )}
               <td className="px-4 py-3">
                 <Link href={`/leads/${lead.id}`} className="font-medium text-slate-900 dark:text-slate-100 hover:text-blue-600 dark:hover:text-blue-400">
                   {fullName(lead.first_name, lead.last_name)}
                 </Link>
+                {lead.ai_call_status && (
+                  <div className="mt-1">
+                    <AiCallStatusBadge status={lead.ai_call_status} />
+                  </div>
+                )}
               </td>
               <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{lead.destination || '—'}</td>
               <td className="px-4 py-3"><SourceIcon source={lead.source} size="sm" /></td>
