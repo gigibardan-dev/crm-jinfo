@@ -18,17 +18,18 @@
  *   - „claim" atomic pe rând (UPDATE ... WHERE status='queued') — același
  *     apel nu poate fi pornit de două ori, chiar dacă webhook-ul și butonul
  *     rulează dispecerul simultan.
- *   - apelurile rămase „agățate" (fără raport de final > 15 min, ex. webhook
- *     pierdut) sunt marcate `failed`, ca să nu blocheze locurile din coadă.
+ *   - reconciliere: apelurile rămase „agățate" (fără raport de final — tipic
+ *     la ocupat / respins) sunt verificate direct în Vapi și finalizate, ca
+ *     să nu blocheze locurile din coadă (vezi reconcileStaleCalls).
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/lib/types/database'
-import { startVapiCall } from './vapi'
+import { startVapiCall, getVapiCall } from './vapi'
+import { handleEndOfCallReport, type VapiMessage } from './report'
 
 type Admin = SupabaseClient<Database>
 
-const STALE_MINUTES = 15
 
 function maxConcurrent(): number {
   const n = parseInt(process.env.AI_CALL_MAX_CONCURRENT || '2', 10)
@@ -55,14 +56,64 @@ export function isWithinCallingHours(now = new Date()): boolean {
   return day >= fromD && day <= toD && hour >= fromH && hour < toH
 }
 
-/** Marchează ca eșuate apelurile pornite care n-au primit raport de final de prea mult timp. */
-async function releaseStaleCalls(admin: Admin) {
-  const cutoff = new Date(Date.now() - STALE_MINUTES * 60_000).toISOString()
-  await admin
+// Praguri de reconciliere (Max duration pe asistent = 180s):
+const RINGING_STALE_MIN = 3 // pornit, dar nu s-a conectat — normal se termină în < 1 min
+const IN_PROGRESS_STALE_MIN = 8 // conectat — maxim 3 min + timp pentru raport
+const GIVE_UP_MIN = 30 // Vapi nu mai răspunde nici el → îl marcăm eșuat
+
+/**
+ * Reconciliere: apelurile rămase „ringing" / „in_progress" peste prag (raport
+ * de final pierdut sau netrimis — tipic la ocupat / respins) sunt verificate
+ * direct în Vapi. Dacă Vapi spune că s-au încheiat, le procesăm exact ca pe un
+ * raport de final (rezultat, timeline, lead). Altfel, după GIVE_UP_MIN, eșuat.
+ * Fără asta, un singur raport lipsă ocupa permanent un loc și oprea coada.
+ */
+async function reconcileStaleCalls(admin: Admin) {
+  const now = Date.now()
+  const { data: stale } = await admin
     .from('ai_calls')
-    .update({ status: 'failed', result: 'failed', error_message: 'Fără raport de final de la Vapi (timeout)' })
+    .select('id, lead_id, status, vapi_call_id, updated_at')
     .in('status', ['ringing', 'in_progress'])
-    .lt('updated_at', cutoff)
+    .lt('updated_at', new Date(now - RINGING_STALE_MIN * 60_000).toISOString())
+    .limit(20)
+
+  for (const row of stale ?? []) {
+    const ageMin = (now - new Date(row.updated_at).getTime()) / 60_000
+    if (row.status === 'in_progress' && ageMin < IN_PROGRESS_STALE_MIN) continue
+
+    if (row.vapi_call_id) {
+      const call = await getVapiCall(row.vapi_call_id)
+      if (call && call.status === 'ended') {
+        const msg: VapiMessage = {
+          type: 'end-of-call-report',
+          endedReason: call.endedReason as string | undefined,
+          startedAt: call.startedAt as string | undefined,
+          endedAt: call.endedAt as string | undefined,
+          cost: call.cost as number | undefined,
+          summary: call.summary as string | undefined,
+          analysis: call.analysis as VapiMessage['analysis'],
+          artifact: call.artifact as VapiMessage['artifact'],
+          call: {
+            id: call.id as string,
+            type: call.type as string | undefined,
+            assistantId: call.assistantId as string | undefined,
+            customer: call.customer as { number?: string } | undefined,
+          },
+        }
+        await handleEndOfCallReport(admin, msg)
+        continue
+      }
+    }
+
+    if (ageMin >= GIVE_UP_MIN || !row.vapi_call_id) {
+      await admin
+        .from('ai_calls')
+        .update({ status: 'failed', result: 'failed', error_message: 'Fără raport de final de la Vapi (timeout)' })
+        .eq('id', row.id)
+      await admin.from('leads').update({ ai_call_status: 'failed' }).eq('id', row.lead_id).eq('ai_call_status', 'in_progress')
+      await admin.from('leads').update({ ai_call_status: 'failed' }).eq('id', row.lead_id).eq('ai_call_status', 'queued')
+    }
+  }
 }
 
 export type DispatchResult = {
@@ -75,7 +126,7 @@ export type DispatchResult = {
 }
 
 export async function dispatchQueue(admin: Admin): Promise<DispatchResult> {
-  await releaseStaleCalls(admin)
+  await reconcileStaleCalls(admin)
 
   const { count: remainingBefore } = await admin
     .from('ai_calls')

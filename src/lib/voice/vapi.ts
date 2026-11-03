@@ -116,3 +116,21 @@ export async function getVapiAssistant(
     return { ok: false, error: `Eroare de rețea către Vapi: ${(err as Error).message}` }
   }
 }
+
+/**
+ * Citește un apel din Vapi (GET /call/:id) — folosit de dispecer la
+ * reconcilierea apelurilor rămase fără raport de final.
+ */
+export async function getVapiCall(callId: string): Promise<Record<string, unknown> | null> {
+  if (!process.env.VAPI_API_KEY) return null
+  try {
+    const res = await fetch(`${VAPI_BASE_URL}/call/${encodeURIComponent(callId)}`, {
+      headers: { Authorization: `Bearer ${process.env.VAPI_API_KEY}` },
+      cache: 'no-store',
+    })
+    if (!res.ok) return null
+    return (await res.json()) as Record<string, unknown>
+  } catch {
+    return null
+  }
+}

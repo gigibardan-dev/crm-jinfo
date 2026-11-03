@@ -143,7 +143,10 @@ export function AiCallsReport() {
   // Reîncărcare la 30s cât timp coada lucrează
   useEffect(() => {
     if (queueNow === 0) return
-    const t = setInterval(() => fetchCalls().then(apply), 30_000)
+    // GET /api/voice/calls rulează și dispecerul (reconciliere + următoarele apeluri)
+    const t = setInterval(() => {
+      fetch('/api/voice/calls').catch(() => {}).finally(() => fetchCalls().then(apply))
+    }, 30_000)
     return () => clearInterval(t)
   }, [queueNow, fetchCalls, apply])
 
