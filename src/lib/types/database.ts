@@ -754,6 +754,8 @@ export type AiCallStatus =
   | 'callback'
   | 'not_interested'
   | 'no_answer'
+  | 'hung_up'
+  | 'unclear'
   | 'invalid'
   | 'failed'
 

@@ -19,6 +19,8 @@ const STATUS_STYLES: Record<AiCallStatus, string> = {
   callback: 'bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300',
   not_interested: 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400',
   no_answer: 'bg-orange-50 dark:bg-orange-950 text-orange-700 dark:text-orange-300',
+  hung_up: 'bg-orange-50 dark:bg-orange-950 text-orange-700 dark:text-orange-300',
+  unclear: 'bg-yellow-50 dark:bg-yellow-950 text-yellow-700 dark:text-yellow-300',
   invalid: 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400',
   failed: 'bg-red-50 dark:bg-red-950 text-red-600 dark:text-red-400',
 }

@@ -15,7 +15,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database, Json } from '@/lib/types/database'
-import { classifyCall, AI_CALL_STATUS_LABELS, type CalificareLead } from './classify'
+import { classifyCall, countCustomerSpeech, AI_CALL_STATUS_LABELS, type CalificareLead } from './classify'
 import { normalizePhoneE164 } from './phone'
 
 // Forma relevantă (parțială) a mesajelor Vapi — câmpurile pot lipsi, citim defensiv
@@ -46,7 +46,9 @@ export type VapiMessage = {
     recordingUrl?: string
     recording?: { mono?: { combinedUrl?: string }; stereoUrl?: string }
     structuredOutputs?: Record<string, { name?: string; result?: unknown }>
+    messages?: { role?: string; message?: string }[]
   }
+  messages?: { role?: string; message?: string }[]
 }
 
 type Admin = SupabaseClient<Database>
@@ -280,7 +282,10 @@ export async function handleEndOfCallReport(admin: Admin, msg: VapiMessage) {
   }
 
   const endedReason = msg.endedReason || null
-  const { status: result, doNotCall } = classifyCall({ structured, endedReason, durationSec })
+  // Cât a vorbit clientul — un apel în care n-a zis nimic nu poate fi „Interesat"
+  const conversation = msg.artifact?.messages || msg.messages
+  const speech = conversation?.length || transcript ? countCustomerSpeech(conversation, transcript) : null
+  const { status: result, doNotCall } = classifyCall({ structured, endedReason, durationSec, speech })
 
   // Raportul brut, pentru audit/debug — fără `messagesOpenAIFormatted`
   // (aceeași conversație a doua oară, doar în alt format)

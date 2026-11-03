@@ -4,6 +4,11 @@
  * „Calificare AI" — transformă rezultatul unui apel Vapi într-una din
  * valorile `AiCallStatus` (leads.ai_call_status / ai_calls.result).
  *
+ * Regula de bază: dacă CLIENTUL n-a spus (aproape) nimic, apelul NU poate fi
+ * „Interesat" — e „A închis repede" sau „Nu răspunde", indiferent ce a
+ * completat LLM-ul în datele structurate. „Interesat" cere un „da" explicit;
+ * un răspuns vag devine „Neclar" (de ascultat de un om).
+ *
  * Sursele, în ordinea priorității:
  *   1. Datele structurate extrase de Vapi (Structured Output `calificare_lead`,
  *      schema din claude/vapi-asistenti-prompturi.md): interesat, vrea_rezervare,
@@ -26,6 +31,8 @@ export const AI_CALL_STATUS_LABELS: Record<AiCallStatus, string> = {
   callback: 'De resunat',
   not_interested: 'Neinteresat',
   no_answer: 'Nu răspunde',
+  hung_up: 'A închis repede',
+  unclear: 'Neclar',
   invalid: 'Număr invalid',
   failed: 'Eroare',
 }
@@ -88,13 +95,53 @@ function toNumber(v: unknown): number | null {
 const NO_ANSWER_REASONS = ['did-not-answer', 'customer-busy', 'voicemail', 'no-answer']
 const INVALID_REASONS = ['invalid', 'not-found', 'unallocated', 'number-not-in-service']
 
+/** Cât a vorbit clientul efectiv în apel (din conversația Vapi). */
+export type CustomerSpeech = { turns: number; words: number }
+
+/**
+ * Numără replicile și cuvintele CLIENTULUI din conversație: întâi din
+ * artifact.messages (rol `user`), altfel din transcript (rânduri „User:" /
+ * „Customer:"). Folosit ca să nu calificăm un apel în care clientul n-a spus
+ * nimic — Structured Output-ul e completat de un LLM și poate „ghici" valori
+ * chiar dacă discuția n-a avut loc.
+ */
+export function countCustomerSpeech(
+  messages: { role?: string; message?: string }[] | undefined | null,
+  transcript: string | null | undefined
+): CustomerSpeech {
+  let turns = 0
+  let words = 0
+  const add = (text: string) => {
+    const w = text.trim().split(/\s+/).filter((x) => /[\p{L}\p{N}]/u.test(x)).length
+    if (w > 0) {
+      turns++
+      words += w
+    }
+  }
+  if (Array.isArray(messages) && messages.length) {
+    for (const m of messages) if (m?.role === 'user' && typeof m.message === 'string') add(m.message)
+    return { turns, words }
+  }
+  for (const line of (transcript || '').split('\n')) {
+    const match = line.match(/^\s*(user|customer|client)\s*:\s*(.*)$/i)
+    if (match) add(match[2])
+  }
+  return { turns, words }
+}
+
+/** Sub atâtea cuvinte spuse de client, discuția nu e considerată reală. */
+const MIN_CUSTOMER_WORDS = 3
+
 export function classifyCall(params: {
   structured: CalificareLead | null
   endedReason: string | null
   durationSec: number | null
+  /** null = nu știm (raport fără conversație) — se folosește doar durata */
+  speech: CustomerSpeech | null
 }): { status: AiCallStatus; doNotCall: boolean } {
   const s = params.structured
   const reason = (params.endedReason || '').toLowerCase()
+  const customerEnded = reason.includes('customer-ended')
 
   // 1. „Nu mă mai sunați" bate orice altceva
   if (s && isYes(s.nu_mai_suna)) return { status: 'not_interested', doNotCall: true }
@@ -103,7 +150,20 @@ export function classifyCall(params: {
   if (INVALID_REASONS.some((r) => reason.includes(r))) return { status: 'invalid', doNotCall: false }
   if (NO_ANSWER_REASONS.some((r) => reason.includes(r))) return { status: 'no_answer', doNotCall: false }
 
-  // 3. Avem date structurate — calificăm după conținutul discuției
+  // 3. Erori tehnice
+  if (reason.includes('error') || reason.includes('failed')) return { status: 'failed', doNotCall: false }
+
+  // 4. Clientul n-a vorbit (aproape) deloc → nu ne bazăm pe datele extrase
+  const words = params.speech ? params.speech.words : null
+  const barelySpoke = words !== null ? words < MIN_CUSTOMER_WORDS : (params.durationSec ?? 0) < 15
+  if (barelySpoke) {
+    // Un „nu" scurt, explicit, rămâne refuz; altfel: a răspuns și a închis repede
+    // vs. n-a fost nimeni la telefon
+    if (words && s && isNo(s.interesat)) return { status: 'not_interested', doNotCall: false }
+    return { status: words || customerEnded || (params.durationSec ?? 0) >= 5 ? 'hung_up' : 'no_answer', doNotCall: false }
+  }
+
+  // 5. A existat o discuție — calificăm după datele extrase
   if (s) {
     const persons = toNumber(s.nr_persoane)
     if (isYes(s.vrea_rezervare) || (isYes(s.interesat) && persons !== null && persons > 0)) {
@@ -113,16 +173,8 @@ export function classifyCall(params: {
     if (hasText(s.resunare_cand)) return { status: 'callback', doNotCall: false }
     if (isYes(s.interesat)) return { status: 'interested', doNotCall: false }
     if (isNo(s.interesat)) return { status: 'not_interested', doNotCall: false }
-    // "nesigur" → îl lăsăm „Interesat", ca un agent să citească discuția
-    if (typeof s.interesat === 'string' && s.interesat.trim()) return { status: 'interested', doNotCall: false }
   }
 
-  // 4. Erori tehnice
-  if (reason.includes('error') || reason.includes('failed')) return { status: 'failed', doNotCall: false }
-
-  // 5. Apel foarte scurt fără date = practic n-a vorbit nimeni
-  if ((params.durationSec ?? 0) < 15) return { status: 'no_answer', doNotCall: false }
-
-  // 6. A existat o discuție, dar fără date clare → om de verificat
-  return { status: 'interested', doNotCall: false }
+  // 6. A vorbit, dar fără un răspuns clar („nesigur" sau fără date) → om de verificat
+  return { status: 'unclear', doNotCall: false }
 }
