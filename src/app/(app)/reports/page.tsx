@@ -26,6 +26,9 @@
  * opțional) — nu există încă un RPC/view de agregare server-side; la volum
  * mult mai mare, asta ar fi următorul pas (vezi doc-ul din proiect).
  *
+ * Tab-ul „Apeluri AI" (AiCallsReport) e autonom — filtre, fetch și agregări
+ * proprii (src/lib/utils/aiCallsReport.ts), montat doar când e activ.
+ *
  * Notă: „Nealocate" și „Stagnante" din rândul de KPI sunt instantanee
  * curente (ca și cardurile din Dashboard), NU filtrate de intervalul de
  * date ales — un lead nealocat rămâne relevant azi indiferent când a fost
@@ -40,6 +43,7 @@ import { StatTile } from '@/components/reports/StatTile'
 import { HBarChart } from '@/components/reports/HBarChart'
 import { TrendAreaChart } from '@/components/reports/TrendAreaChart'
 import { ReportsFilterBar } from '@/components/reports/ReportsFilterBar'
+import { AiCallsReport } from '@/components/reports/AiCallsReport'
 import { TERMINAL_STATUSES } from '@/lib/utils/constants'
 import { stagnantThresholdIso } from '@/lib/utils/stagnantLeads'
 import {
@@ -48,7 +52,7 @@ import {
   type ReportLead,
 } from '@/lib/utils/reports'
 import type { Profile, LeadSource, PipelineStage } from '@/lib/types/database'
-import { Users2, TrendingUp, Wallet, Timer, Inbox, AlertTriangle, BarChart3 } from 'lucide-react'
+import { Users2, TrendingUp, Wallet, Timer, Inbox, AlertTriangle, BarChart3, Bot } from 'lucide-react'
 import { format, subDays } from 'date-fns'
 
 const REPORT_LEAD_COLUMNS = 'id, first_name, last_name, email, phone, status, priority, source, destination, assigned_to, created_at, first_response_at, won_value, total_amount_ron, commission_eur, commission_ron, lost_reason'
@@ -66,6 +70,7 @@ export default function ReportsPage() {
   const [unassignedCount, setUnassignedCount] = useState(0)
   const [stagnantCount, setStagnantCount] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState<'leads' | 'ai'>('leads')
 
   const [filterAgent, setFilterAgent] = useState('all')
   const [filterDateFrom, setFilterDateFrom] = useState(() => format(subDays(new Date(), 29), 'yyyy-MM-dd'))
@@ -190,6 +195,35 @@ export default function ReportsPage() {
     <>
       <Header title="Rapoarte" />
       <div className="p-4 sm:p-6 space-y-4">
+        {/* Taburi: rapoartele de leaduri / apelurile AI */}
+        <div className="flex gap-1 border-b border-slate-200 dark:border-slate-700 overflow-x-auto">
+          {([
+            { key: 'leads', label: 'Leaduri', icon: BarChart3 },
+            { key: 'ai', label: 'Apeluri AI', icon: Bot },
+          ] as const).map((tab) => {
+            const Icon = tab.icon
+            const isActive = activeTab === tab.key
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setActiveTab(tab.key)}
+                aria-current={isActive}
+                className={`inline-flex items-center gap-1.5 px-3.5 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+                  isActive
+                    ? 'border-blue-600 text-blue-700 dark:text-blue-400'
+                    : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                }`}
+              >
+                <Icon size={15} />
+                {tab.label}
+              </button>
+            )
+          })}
+        </div>
+
+        {activeTab === 'ai' ? <AiCallsReport /> : (
+        <>
         <ReportsFilterBar
           agents={agents}
           filterAgent={filterAgent}
@@ -313,6 +347,8 @@ export default function ReportsPage() {
             <BarChart3 size={16} className="shrink-0" />
             Niciun lead în intervalul și filtrele selectate.
           </div>
+        )}
+        </>
         )}
       </div>
     </>

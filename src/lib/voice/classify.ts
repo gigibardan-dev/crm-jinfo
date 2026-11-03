@@ -30,6 +30,17 @@ export const AI_CALL_STATUS_LABELS: Record<AiCallStatus, string> = {
   failed: 'Eroare',
 }
 
+/** Motivul închiderii apelului (Vapi `endedReason`) în română — panoul de apel + raport. */
+export const ENDED_REASON_LABELS: Record<string, string> = {
+  'customer-ended-call': 'Clientul a închis',
+  'assistant-ended-call': 'Asistentul a închis',
+  'customer-did-not-answer': 'Nu a răspuns',
+  'customer-busy': 'Ocupat',
+  voicemail: 'Căsuță vocală',
+  'silence-timed-out': 'Închis după tăcere',
+  'exceeded-max-duration': 'Durata maximă depășită',
+}
+
 /** Forma (tolerantă) a datelor structurate — LLM-ul poate întoarce variații. */
 export type CalificareLead = {
   interesat?: string | boolean | null

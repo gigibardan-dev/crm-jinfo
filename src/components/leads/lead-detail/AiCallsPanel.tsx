@@ -28,11 +28,12 @@ import { useToast } from '@/components/ui/Toast'
 import { formatDateTime } from '@/lib/utils'
 import type { AiCallRunStatus, AiCallStatus, Json } from '@/lib/types/database'
 import { AiCallStatusBadge } from '@/components/leads/AiCallStatusBadge'
-import type { CalificareLead } from '@/lib/voice/classify'
+import { ENDED_REASON_LABELS, type CalificareLead } from '@/lib/voice/classify'
 
 type CallRow = {
   id: string
   created_at: string
+  direction: 'outbound' | 'inbound'
   status: AiCallRunStatus
   result: AiCallStatus | null
   ended_reason: string | null
@@ -59,15 +60,6 @@ const RUN_STATUS_LABELS: Record<AiCallRunStatus, string> = {
   cancelled: 'Anulat',
 }
 
-const ENDED_REASON_LABELS: Record<string, string> = {
-  'customer-ended-call': 'Clientul a închis',
-  'assistant-ended-call': 'Asistentul a închis',
-  'customer-did-not-answer': 'Nu a răspuns',
-  'customer-busy': 'Ocupat',
-  voicemail: 'Căsuță vocală',
-  'silence-timed-out': 'Închis după tăcere',
-  'exceeded-max-duration': 'Durata maximă depășită',
-}
 
 const FIELD_LABELS: { key: keyof CalificareLead; label: string }[] = [
   { key: 'interesat', label: 'Interesat' },
@@ -148,7 +140,7 @@ export function AiCallsPanel({ leadId, canCall, onCallFinished }: AiCallsPanelPr
     const { data } = await supabase
       .from('ai_calls')
       .select(
-        'id, created_at, status, result, ended_reason, duration_sec, summary, transcript, recording_url, structured_data, error_message, call_campaigns(name), messages:raw_report->artifact->messages'
+        'id, created_at, direction, status, result, ended_reason, duration_sec, summary, transcript, recording_url, structured_data, error_message, call_campaigns(name), messages:raw_report->artifact->messages'
       )
       .eq('lead_id', leadId)
       .order('created_at', { ascending: false })
@@ -308,8 +300,11 @@ export function AiCallsPanel({ leadId, canCall, onCallFinished }: AiCallsPanelPr
                         {RUN_STATUS_LABELS[call.status]}
                       </span>
                     )}
+                    {call.direction === 'inbound' && (
+                      <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">A sunat înapoi</span>
+                    )}
                     <span className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                      {call.call_campaigns?.name || 'Campanie ștearsă'}
+                      {call.call_campaigns?.name || (call.direction === 'inbound' ? 'Apel primit' : 'Campanie ștearsă')}
                     </span>
                   </div>
                   <div className="flex items-center gap-2 shrink-0 text-xs text-slate-400">

@@ -597,6 +597,7 @@ export type Database = {
           campaign_id: string | null
           list_id: string | null
           phone_number: string
+          direction: 'outbound' | 'inbound'
           vapi_call_id: string | null
           status: AiCallRunStatus
           result: AiCallStatus | null
@@ -621,6 +622,7 @@ export type Database = {
           campaign_id?: string | null
           list_id?: string | null
           phone_number: string
+          direction?: 'outbound' | 'inbound'
           vapi_call_id?: string | null
           status?: AiCallRunStatus
           result?: AiCallStatus | null

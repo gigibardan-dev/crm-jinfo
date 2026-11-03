@@ -19,6 +19,15 @@
  * pornire) sau, ca rezervă, după `metadata.ai_call_id` trimis de noi.
  *
  * Leadul NU își schimbă etapa din pipeline — doar `ai_call_status`.
+ *
+ * APELURI PRIMITE (clientul sună înapoi la numărul Twilio): răspunde
+ * asistentul setat la Inbound pe număr în Vapi, iar raportul vine prin
+ * Server URL-ul NUMĂRULUI (Vapi → Phone Numbers). Nu există rând în
+ * ai_calls, așa că la `end-of-call-report` îl creăm aici (direction =
+ * 'inbound', migrarea 015): leadul e găsit după telefon (orice format,
+ * migrarea 014) sau creat nou cu sursa „Telefon". Leadul primește prioritate
+ * mare, eveniment „Clientul a sunat înapoi" în timeline și notificare
+ * (agentul alocat sau, dacă e nealocat, adminii/managerii).
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -26,6 +35,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import type { Json } from '@/lib/types/database'
 import { classifyCall, AI_CALL_STATUS_LABELS, type CalificareLead } from '@/lib/voice/classify'
 import { dispatchQueue } from '@/lib/voice/dispatcher'
+import { normalizePhoneE164 } from '@/lib/voice/phone'
 
 // Forma relevantă (parțială) a mesajelor Vapi — câmpurile pot lipsi, citim defensiv
 type VapiMessage = {
@@ -34,9 +44,14 @@ type VapiMessage = {
   endedReason?: string
   call?: {
     id?: string
+    type?: string // 'outboundPhoneCall' | 'inboundPhoneCall' | 'webCall'
+    assistantId?: string
+    customer?: { number?: string }
     assistantOverrides?: { metadata?: { ai_call_id?: string } }
     metadata?: { ai_call_id?: string }
   }
+  customer?: { number?: string }
+  assistant?: { id?: string }
   startedAt?: string
   endedAt?: string
   durationSeconds?: number
@@ -94,9 +109,11 @@ function extractStructured(msg: VapiMessage): CalificareLead | null {
   const outputs = msg.artifact?.structuredOutputs
   if (outputs && typeof outputs === 'object') {
     const entries = Object.values(outputs)
+    // Doar rezultate de tip obiect — pot exista mai multe outputuri cu același
+    // nume (ex. o variantă veche Boolean rămasă atașată la asistent)
+    const isObj = (o: { result?: unknown } | undefined) => !!o?.result && typeof o.result === 'object'
     const match =
-      entries.find((o) => o?.name === STRUCTURED_OUTPUT_NAME) ??
-      entries.find((o) => o?.result && typeof o.result === 'object')
+      entries.find((o) => o?.name === STRUCTURED_OUTPUT_NAME && isObj(o)) ?? entries.find(isObj)
     if (match?.result && typeof match.result === 'object') return match.result as CalificareLead
   }
   const legacy = msg.analysis?.structuredData
@@ -117,8 +134,8 @@ function extractSummary(msg: VapiMessage): string | null {
 }
 
 /** Text scurt, lizibil, pentru timeline. */
-function buildTimelineText(label: string, summary: string | null, s: CalificareLead | null): string {
-  const lines = [`Apel AI — ${label}`]
+function buildTimelineText(label: string, summary: string | null, s: CalificareLead | null, inbound = false): string {
+  const lines = [inbound ? `Clientul a sunat înapoi — ${label}` : `Apel AI — ${label}`]
   if (summary) lines.push(summary)
   if (!summary && !s) lines.push('Fără rezumat și fără date extrase de Vapi — verifică transcriptul și înregistrarea.')
   if (s) {
@@ -151,9 +168,113 @@ async function handleStatusUpdate(admin: Admin, msg: VapiMessage) {
   // 'ended' e tratat complet de end-of-call-report
 }
 
+type CallRow = { id: string; lead_id: string; campaign_id: string | null; created_by: string | null }
+
+/**
+ * Apel PRIMIT fără rând în ai_calls → găsește/creează leadul după telefon și
+ * creează rândul (direction = 'inbound'). Idempotent prin vapi_call_id unic:
+ * dacă Vapi retrimite raportul, findAiCall îl găsește data viitoare.
+ */
+async function createInboundCall(admin: Admin, msg: VapiMessage): Promise<(CallRow & { isNewLead: boolean }) | null> {
+  if (msg.call?.type !== 'inboundPhoneCall' || !msg.call.id) return null
+  const phone = normalizePhoneE164(msg.call.customer?.number || msg.customer?.number)
+  if (!phone) return null
+
+  // Leadul existent (cel mai nou cu acest număr, indiferent de format)
+  const { data: matches } = await admin.rpc('find_leads_by_phone_suffix', { suffixes: [phone.replace(/\D/g, '').slice(-9)] })
+  let leadId = matches?.[0]?.id ?? null
+  let isNewLead = false
+
+  if (!leadId) {
+    const { data: created, error } = await admin
+      .from('leads')
+      .insert({
+        phone,
+        source: 'phone',
+        source_detail: 'A sunat la numărul agentului AI',
+        message: 'Lead creat automat: clientul a sunat la numărul agentului AI, fără să existe în CRM.',
+        status: 'new',
+        priority: 'high',
+        source_raw_data: { inbound_ai_call: msg.call.id } as Json,
+      })
+      .select('id')
+      .single()
+    if (error || !created) {
+      console.error('[vapi-webhook] lead inbound nu a putut fi creat:', error?.message)
+      return null
+    }
+    leadId = created.id
+    isNewLead = true
+  }
+
+  // Campania = cea al cărei asistent a răspuns (dacă există în CRM)
+  const assistantId = msg.call.assistantId || msg.assistant?.id
+  let campaignId: string | null = null
+  if (assistantId) {
+    const { data: camp } = await admin.from('call_campaigns').select('id').eq('vapi_assistant_id', assistantId).limit(1).maybeSingle()
+    campaignId = camp?.id ?? null
+  }
+
+  const { data: row, error: rowError } = await admin
+    .from('ai_calls')
+    .insert({
+      lead_id: leadId,
+      campaign_id: campaignId,
+      phone_number: phone,
+      vapi_call_id: msg.call.id,
+      direction: 'inbound',
+      status: 'in_progress',
+    })
+    .select('id, lead_id, campaign_id, created_by')
+    .single()
+  if (rowError || !row) {
+    console.error('[vapi-webhook] rând ai_calls inbound eșuat:', rowError?.message)
+    return null
+  }
+  return { ...row, isNewLead }
+}
+
+/** Prioritate mare + notificare pentru un client care a sunat înapoi. */
+async function flagCallback(admin: Admin, leadId: string, label: string, summary: string | null, isNewLead: boolean) {
+  const { data: lead } = await admin
+    .from('leads')
+    .select('first_name, last_name, phone, priority, assigned_to')
+    .eq('id', leadId)
+    .single()
+  if (!lead) return
+
+  if (lead.priority !== 'urgent') await admin.from('leads').update({ priority: 'high' }).eq('id', leadId)
+
+  let recipients: string[] = []
+  if (lead.assigned_to) {
+    recipients = [lead.assigned_to]
+  } else {
+    const { data: managers } = await admin.from('profiles').select('id').in('role', ['admin', 'manager']).eq('is_active', true)
+    recipients = (managers ?? []).map((m) => m.id)
+  }
+  if (!recipients.length) return
+
+  const name = [lead.first_name, lead.last_name].filter(Boolean).join(' ') || lead.phone || 'Client'
+  await admin.from('notifications').insert(
+    recipients.map((user_id) => ({
+      user_id,
+      type: 'system' as const,
+      title: isNewLead ? `Client nou a sunat la numărul AI (${label})` : `${name} a sunat înapoi (${label})`,
+      body: summary ? summary.slice(0, 280) : 'Vezi conversația în pagina leadului.',
+      lead_id: leadId,
+    }))
+  )
+}
+
 async function handleEndOfCallReport(admin: Admin, msg: VapiMessage) {
-  const row = await findAiCall(admin, msg)
-  if (!row) return
+  let row: CallRow | null = await findAiCall(admin, msg)
+  let inbound: { isNewLead: boolean } | null = null
+  if (!row) {
+    const created = await createInboundCall(admin, msg)
+    if (!created) return
+    row = created
+    inbound = { isNewLead: created.isNewLead }
+  }
 
   const structured = extractStructured(msg)
   const summary = extractSummary(msg)
@@ -216,7 +337,7 @@ async function handleEndOfCallReport(admin: Admin, msg: VapiMessage) {
     lead_id: row.lead_id,
     user_id: row.created_by,
     type: 'ai_call',
-    content: buildTimelineText(label, summary, structured),
+    content: buildTimelineText(label, summary, structured, !!inbound),
     metadata: {
       ai_call_id: row.id,
       campaign_id: row.campaign_id,
@@ -225,8 +346,11 @@ async function handleEndOfCallReport(admin: Admin, msg: VapiMessage) {
       duration_sec: durationSec,
       recording_url: recordingUrl,
       do_not_call: doNotCall,
+      direction: inbound ? 'inbound' : 'outbound',
     } as Json,
   })
+
+  if (inbound) await flagCallback(admin, row.lead_id, label, summary, inbound.isNewLead)
 }
 
 export async function POST(request: NextRequest) {
