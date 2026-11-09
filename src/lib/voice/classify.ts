@@ -59,6 +59,11 @@ export type CalificareLead = {
   resunare_cand?: string | null
   nu_mai_suna?: boolean | string | null
   observatii?: string | null
+  // Campanii generale (ex. „Reduceri 2027 – clienți fideli"): clientul spune
+  // ce vacanță vrea — destinația dorită e SCOPUL apelului, nu o „altă cerere"
+  tip_vacanta?: string | null
+  destinatie_dorita?: string | null
+  perioada_dorita?: string | null
 }
 
 function isYes(v: unknown): boolean {
@@ -168,6 +173,14 @@ export function classifyCall(params: {
     const persons = toNumber(s.nr_persoane)
     if (isYes(s.vrea_rezervare) || (isYes(s.interesat) && persons !== null && persons > 0)) {
       return { status: 'hot', doNotCall: false }
+    }
+    // Campanie generală: destinație dorită + (persoane sau perioadă) = gata de ofertă
+    const wantsDestination = hasText(s.destinatie_dorita) || hasText(s.tip_vacanta)
+    if (wantsDestination && !isNo(s.interesat)) {
+      if (hasText(s.destinatie_dorita) && (persons !== null && persons > 0 || hasText(s.perioada_dorita))) {
+        return { status: 'hot', doNotCall: false }
+      }
+      return { status: 'interested', doNotCall: false }
     }
     if (hasText(s.alta_destinatie) || hasText(s.alta_perioada)) return { status: 'other_request', doNotCall: false }
     if (hasText(s.resunare_cand)) return { status: 'callback', doNotCall: false }

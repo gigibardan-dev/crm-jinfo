@@ -323,9 +323,9 @@ export function AiCallsReport() {
           <HBarChart data={endedReasons} emptyMessage="Niciun apel în intervalul selectat." />
         </div>
         <div className={cardClass}>
-          <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Alte destinații cerute</h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">Ce au mai cerut clienții în afară de oferta sunată — idei pentru campaniile următoare.</p>
-          <HBarChart data={otherDest} emptyMessage="Nicio altă destinație cerută în intervalul selectat." />
+          <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Destinații cerute de clienți</h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">Destinațiile dorite (campanii generale) și cele cerute în afara ofertei sunate — idei pentru campaniile următoare.</p>
+          <HBarChart data={otherDest} emptyMessage="Nicio destinație cerută în intervalul selectat." />
         </div>
       </div>
 

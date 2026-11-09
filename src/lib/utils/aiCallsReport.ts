@@ -215,12 +215,14 @@ export function computeCampaignPerformance(calls: ReportCall[]): CampaignPerf[] 
     .sort((a, b) => b.placed - a.placed)
 }
 
-/** Alte destinații cerute de clienți (câmpul `alta_destinatie` extras de Vapi). */
+/** Destinații cerute de clienți (`destinatie_dorita` sau `alta_destinatie`, extrase de Vapi). */
 export function computeOtherDestinations(calls: ReportCall[]) {
   const counts = new Map<string, { label: string; value: number }>()
   for (const c of calls) {
     const sd = c.structured_data as Record<string, unknown> | null
-    const raw = typeof sd?.alta_destinatie === 'string' ? sd.alta_destinatie.trim() : ''
+    // destinația dorită (campanii generale) sau altă destinație (campanii pe o ofertă)
+    const pick = [sd?.destinatie_dorita, sd?.alta_destinatie].find((v) => typeof v === 'string' && v.trim())
+    const raw = typeof pick === 'string' ? pick.trim() : ''
     if (raw.length < 2 || ['nu', 'nimic', 'nespecificat', 'null', '-'].includes(raw.toLowerCase())) continue
     const key = raw.toLowerCase()
     const prev = counts.get(key)
@@ -277,7 +279,7 @@ function csvEscape(value: string): string {
 }
 
 export function aiCallsToCSV(calls: ReportCall[], agentNameById: Map<string, string>): string {
-  const headers = ['Data', 'Direcție', 'Client', 'Telefon', 'Campanie', 'Rezultat', 'Închidere', 'Durată (s)', 'Cost ($)', 'Persoane', 'Canal', 'Altă destinație', 'Rezumat', 'Agent', 'Status lead']
+  const headers = ['Data', 'Direcție', 'Client', 'Telefon', 'Campanie', 'Rezultat', 'Închidere', 'Durată (s)', 'Cost ($)', 'Persoane', 'Canal', 'Destinație cerută', 'Rezumat', 'Agent', 'Status lead']
   const rows = calls.filter(isListed).map((c) => {
     const sd = (c.structured_data || {}) as Record<string, unknown>
     return [
@@ -292,7 +294,7 @@ export function aiCallsToCSV(calls: ReportCall[], agentNameById: Map<string, str
       c.cost ?? '',
       sd.nr_persoane ?? '',
       sd.canal_preferat ?? '',
-      sd.alta_destinatie ?? '',
+      sd.destinatie_dorita ?? sd.alta_destinatie ?? '',
       c.summary || '',
       c.leads?.assigned_to ? agentNameById.get(c.leads.assigned_to) || '' : 'Nealocat',
       c.leads?.status || '',

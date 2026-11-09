@@ -123,6 +123,9 @@ function buildTimelineText(label: string, summary: string | null, s: CalificareL
   if (!summary && !s) lines.push('Fără rezumat și fără date extrase de Vapi — verifică transcriptul și înregistrarea.')
   if (s) {
     const details: string[] = []
+    if (s.tip_vacanta) details.push(`Tip vacanță: ${s.tip_vacanta}`)
+    if (s.destinatie_dorita) details.push(`Destinație dorită: ${s.destinatie_dorita}`)
+    if (s.perioada_dorita) details.push(`Perioadă: ${s.perioada_dorita}`)
     if (s.nr_persoane) details.push(`Persoane: ${s.nr_persoane}`)
     if (s.canal_preferat && s.canal_preferat !== 'nespecificat') details.push(`Canal preferat: ${s.canal_preferat}`)
     if (s.alta_destinatie) details.push(`Altă destinație: ${s.alta_destinatie}`)

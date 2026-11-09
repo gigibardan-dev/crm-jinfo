@@ -64,6 +64,9 @@ const RUN_STATUS_LABELS: Record<AiCallRunStatus, string> = {
 const FIELD_LABELS: { key: keyof CalificareLead; label: string }[] = [
   { key: 'interesat', label: 'Interesat' },
   { key: 'vrea_rezervare', label: 'Vrea rezervare' },
+  { key: 'tip_vacanta', label: 'Tip vacanță' },
+  { key: 'destinatie_dorita', label: 'Destinație dorită' },
+  { key: 'perioada_dorita', label: 'Perioadă dorită' },
   { key: 'nr_persoane', label: 'Persoane' },
   { key: 'canal_preferat', label: 'Canal preferat' },
   { key: 'alta_destinatie', label: 'Altă destinație' },
