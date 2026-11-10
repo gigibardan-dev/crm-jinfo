@@ -15,7 +15,7 @@ import Link from 'next/link'
 import { UserPlus, MapPin, Calendar, Users } from 'lucide-react'
 import { SourceIcon } from '@/components/leads/SourceIcon'
 import { PriorityBadge } from '@/components/leads/PriorityBadge'
-import { AiCallStatusBadge } from '@/components/leads/AiCallStatusBadge'
+import { AiCallBadges } from '@/components/leads/AiCallStatusBadge'
 import type { Lead, Profile } from '@/lib/types/database'
 import { fullName, timeAgo, formatTravelDates, formatTravelers } from '@/lib/utils'
 
@@ -46,7 +46,7 @@ export function InboxLeadRow({ lead, agents, selected, onToggleSelect, assigning
           </span>
           <PriorityBadge priority={lead.priority} size="sm" />
           {/* Calificare AI — leadul a fost deja sunat de asistentul AI */}
-          <AiCallStatusBadge status={lead.ai_call_status} />
+          <AiCallBadges count={lead.ai_call_count} status={lead.ai_call_status} />
         </div>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
           {lead.destination && <span className="flex items-center gap-1"><MapPin size={11} /> {lead.destination}</span>}

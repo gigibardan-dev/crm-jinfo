@@ -20,7 +20,7 @@ import { Bell, User } from 'lucide-react'
 import { SourceIcon } from '@/components/leads/SourceIcon'
 import { PriorityBadge } from '@/components/leads/PriorityBadge'
 import { StagnantBadge } from '@/components/leads/StagnantBadge'
-import { AiCallStatusBadge } from '@/components/leads/AiCallStatusBadge'
+import { AiCallBadges } from '@/components/leads/AiCallStatusBadge'
 import type { Lead, PipelineStage, Profile } from '@/lib/types/database'
 import { fullName, timeAgo } from '@/lib/utils'
 
@@ -68,12 +68,8 @@ export function KanbanBoard({ visibleStages, leads, agentsById }: KanbanBoardPro
                       {lead.next_followup_at && <span className="flex items-center gap-0.5"><Bell size={10} /> Reminder</span>}
                     </div>
                     <StagnantBadge status={lead.status} lastInteractionAt={lead.last_interaction_at} className="mt-1.5" />
-                    {/* Calificare AI — leadul a fost deja sunat de asistentul AI */}
-                    {lead.ai_call_status && (
-                      <div className="mt-1.5">
-                        <AiCallStatusBadge status={lead.ai_call_status} />
-                      </div>
-                    )}
+                    {/* „Apelat AI" + calificarea — leadul a fost sunat de asistentul AI */}
+                    <AiCallBadges count={lead.ai_call_count} status={lead.ai_call_status} className="mt-1.5 flex" />
                   </Link>
                 )
               })}

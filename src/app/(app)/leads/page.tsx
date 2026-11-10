@@ -35,6 +35,7 @@ import { PipelineFilterBar } from '@/components/leads/pipeline/PipelineFilterBar
 import { KanbanBoard } from '@/components/leads/pipeline/KanbanBoard'
 import { LeadsListView } from '@/components/leads/pipeline/LeadsListView'
 import { AiCallBulkBar } from '@/components/leads/pipeline/AiCallBulkBar'
+import { ReassignBulkBar } from '@/components/leads/pipeline/ReassignBulkBar'
 import { WonValueModal } from '@/components/leads/lead-detail/LeadActionModals'
 import { type WonDetails, EMPTY_WON_DETAILS, buildWonUpdate, formatWonNote } from '@/lib/types/wonDetails'
 
@@ -84,7 +85,8 @@ function PipelinePageContent() {
   const [sources, setSources] = useState<LeadSource[]>([])
   const [reminderLeadIds, setReminderLeadIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
-  const [viewMode, setViewMode] = useState<PipelineViewMode>(hasUrlFilters ? 'list' : 'kanban')
+  // Implicit Listă (selecție multiplă, realocare, coada AI); Kanban rămâne la un click
+  const [viewMode, setViewMode] = useState<PipelineViewMode>('list')
 
   // --- Filters ---
   const [filterAgent, setFilterAgent] = useState<string>('all')
@@ -382,6 +384,18 @@ function PipelinePageContent() {
 
         {viewMode === 'kanban' && (
           <KanbanBoard visibleStages={visibleStages} leads={filteredLeads} agentsById={agentsById} />
+        )}
+
+        {/* Realocare în masă — bară SEPARATĂ (sus, albastră) de cea pentru apeluri AI (jos, violet) */}
+        {viewMode === 'list' && isAdminOrManager && (
+          <ReassignBulkBar
+            selectedIds={visibleSelectedIds}
+            filteredCount={filteredLeads.length}
+            agents={agents}
+            onSelectAllFiltered={() => setSelectedIds(new Set(filteredLeads.map((l) => l.id)))}
+            onClear={() => setSelectedIds(new Set())}
+            onDone={fetchData}
+          />
         )}
 
         {viewMode === 'list' && (

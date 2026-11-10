@@ -2,11 +2,17 @@
  * src/components/leads/AiCallStatusBadge.tsx
  *
  * Badge pentru „Calificarea AI" (leads.ai_call_status / ai_calls.result).
+ *
+ * `AiCallBadges` (folosit în Pipeline Listă / Kanban / Inbox) pune în plus,
+ * în fața rezultatului, eticheta generală albastră „Apelat AI" (cu ×N la mai
+ * multe apeluri) — ca leadurile sunate de AI să se vadă dintr-o privire,
+ * indiferent de rezultat. Pentru un lead doar pus în coadă (încă nesunat)
+ * apare doar starea „În coadă".
  * Folosit în panoul de apeluri din pagina leadului și, ulterior, în listele
  * de leaduri / pagina Apeluri AI. Etichetele vin din lib/voice/classify.ts.
  */
 
-import { Bot } from 'lucide-react'
+import { Bot, PhoneCall } from 'lucide-react'
 import type { AiCallStatus } from '@/lib/types/database'
 import { AI_CALL_STATUS_LABELS } from '@/lib/voice/classify'
 
@@ -31,6 +37,23 @@ export function AiCallStatusBadge({ status, showIcon = true }: { status: AiCallS
     <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded ${STATUS_STYLES[status]}`}>
       {showIcon && <Bot size={11} />}
       {AI_CALL_STATUS_LABELS[status]}
+    </span>
+  )
+}
+
+/** Eticheta generală „Apelat AI" + rezultatul ultimului apel, pentru listele de leaduri. */
+export function AiCallBadges({ count, status, className = '' }: { count: number | null; status: AiCallStatus | null; className?: string }) {
+  const called = (count ?? 0) > 0
+  if (!called && !status) return null
+  return (
+    <span className={`inline-flex flex-wrap items-center gap-1 ${className}`}>
+      {called && (
+        <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded bg-blue-600 text-white dark:bg-blue-500">
+          <PhoneCall size={11} />
+          Apelat AI{(count ?? 0) > 1 ? ` ×${count}` : ''}
+        </span>
+      )}
+      <AiCallStatusBadge status={status} />
     </span>
   )
 }

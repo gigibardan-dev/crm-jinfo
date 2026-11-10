@@ -41,7 +41,7 @@ import { SourceIcon } from '@/components/leads/SourceIcon'
 import { PriorityBadge } from '@/components/leads/PriorityBadge'
 import { StatusBadge } from '@/components/leads/StatusBadge'
 import { StagnantBadge } from '@/components/leads/StagnantBadge'
-import { AiCallStatusBadge } from '@/components/leads/AiCallStatusBadge'
+import { AiCallBadges } from '@/components/leads/AiCallStatusBadge'
 import type { Lead, PipelineStage, Profile } from '@/lib/types/database'
 import { fullName, timeAgo } from '@/lib/utils'
 
@@ -130,11 +130,7 @@ export function LeadsTable({
                 <Link href={`/leads/${lead.id}`} className="font-medium text-slate-900 dark:text-slate-100 hover:text-blue-600 dark:hover:text-blue-400">
                   {fullName(lead.first_name, lead.last_name)}
                 </Link>
-                {lead.ai_call_status && (
-                  <div className="mt-1">
-                    <AiCallStatusBadge status={lead.ai_call_status} />
-                  </div>
-                )}
+                <AiCallBadges count={lead.ai_call_count} status={lead.ai_call_status} className="mt-1 flex" />
               </td>
               <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{lead.destination || '—'}</td>
               <td className="px-4 py-3"><SourceIcon source={lead.source} size="sm" /></td>
